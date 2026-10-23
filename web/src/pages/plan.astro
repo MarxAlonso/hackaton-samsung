@@ -30,6 +30,8 @@ import { icon } from "../lib/icons";
 
   <p id="replay" class="notice" hidden></p>
 
+  <p id="plan-note" class="notice" hidden></p>
+
   <section class="card controls no-print" aria-label="Supuestos del plan">
     <h2 class="chart-title"><Fragment set:html={icon("target", 20)} /> Tus recursos y supuestos</h2>
     <p class="chart-sub">Mueve los controles y el plan se recalcula al instante. Los supuestos son editables: valídalos con la DIRESA.</p>
@@ -241,6 +243,9 @@ import { icon } from "../lib/icons";
     const replay = $("#replay");
     replay.hidden = scenarioSel.value === "actual";
     replay.innerHTML = `<strong>Modo replay — ${s.etiqueta}.</strong> El plan se calcula con las predicciones de la semana del ${weekLabel(s.semana)}.`;
+    const note = $("#plan-note");
+    note.hidden = s.modelo.familia !== "clima";
+    note.innerHTML = `<strong>Los casos esperados de hoy salen del modelo solo con clima.</strong> El último caso oficial es de ${weekLabel(app.datos.ultimo_caso_oficial)}; usa este plan para decidir en qué distritos empezar, no como cifra exacta de casos evitados. En los replays de 2017 y 2023 el modelo sí usa casos reales recientes.`;
     history.replaceState(null, "", `?escenario=${scenarioSel.value}${deptSel.value ? `&depto=${deptSel.value}` : ""}&b=${brig.value}&h=${hab.value}&e=${efe.value}&c=${p.criterio}`);
   }
 

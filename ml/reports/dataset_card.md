@@ -1,45 +1,50 @@
 # Dataset card: Alerta Salud Niño
 
-## Fuentes reales (por API)
+## Casos de enfermedad: reales (CDC-MINSA)
+
+Datos abiertos de vigilancia epidemiológica del CDC-MINSA, Plataforma Nacional de Datos Abiertos (www.datosabiertos.gob.pe), licencia **Open Data Commons Attribution (ODC-By)**: hay que citar la fuente. Se descargan solos (`ingest_cases.py`), solo si el archivo cambió (se compara tamaño y fecha).
+
+| Enfermedad | Archivo | Años | Registro |
+|---|---|---|---|
+| Dengue | `datos_abiertos_vigilancia_dengue_2000_2025_0.csv` | 2000–2025 | un caso por fila |
+| Diarreas (EDA) | `…_edas_2000_2025.csv` | 2000–2025 | episodios por ubigeo y semana |
+| Infecciones respiratorias (IRA) | `…_iras_2000_2025.csv` (separador `;`) | 2000–2025 | idem |
+| Leptospirosis | `…_zoonosis_2000_2025_0.csv` | 2000–2025 | un caso por fila |
+| Dengue Piura 2025–2026 | `dataset_dengue_actualizado.csv` (Gobierno Regional de Piura) | 2023, 2025, 2026 (corte 2026-07-02) | un caso por fila |
+
+Nuestros 47 distritos suman 297 681 casos de dengue, 5 501 de leptospirosis, 2 038 405 episodios de EDA y 5 841 555 de IRA.
+
+### Decisiones y límites (con evidencia)
+
+- **Cruce por UBIGEO, no por nombre.** La Ñ viene dañada en origen (Pariñas, Tambo Grande, Ferreñafe).
+- **El último año del archivo nacional (2025) es provisional y se descarta.** Piura 2025: el CDC trae 1 117 casos y el Gobierno Regional de Piura 12 242. El dengue de 2025 en Tumbes, Piura y Lambayeque es 0,20, 0,03 y 0,07 veces el de 2024. Cuando salga un archivo con un año más, el anterior pasa a usarse. Por eso la cobertura oficial termina el **2024-12-23**.
+- **Ceros solo dentro de la cobertura;** fuera es dato desconocido (NaN), nunca cero.
+- **Gobierno Regional de Piura:** su 2023 (semanas 1–19) coincide con el CDC (22 712 vs 22 825), pero hay un salto en el empalme 2024→2025. Se muestra como contexto en los gráficos (hasta 2026-06-22, sin la semana de corte incompleta) y **no se usa para entrenar**.
+- Tumbes y Lambayeque no tienen 2026 en ninguna fuente abierta.
+- Semanas epidemiológicas: domingo a sábado, la semana 1 contiene el 4 de enero; se asigna al lunes siguiente.
+- Un caso notificado no es una infección: más casos pueden ser más contagio, más pruebas o más notificación.
+
+## Datos simulados: solo golpe de calor
+
+No existe fuente abierta de golpe de calor por distrito. Se simula a partir de la temperatura máxima real (`simulate.py`, flujo aleatorio estable por distrito). Está marcado como simulado en el sitio.
+
+## Clima y El Niño: reales
 
 | Dato | Fuente | Periodo | Granularidad |
 |---|---|---|---|
-| Lluvia, temperatura máxima y media, humedad | Open-Meteo Archive API (reanálisis ERA5) | 2015 – hoy | Diaria → semanal, por celda de 0,25° asignada a cada distrito. La descarga es incremental: solo se piden los días nuevos más 10 de solapamiento (ERA5 corrige valores recientes) |
+| Lluvia, temperatura máxima y media, humedad | Open-Meteo Archive API (reanálisis ERA5) | 2015 – hoy | Diaria → semanal, por celda de 0,25°. Descarga incremental (días nuevos + 10 de solapamiento) |
 | Pronóstico de lluvia y temperatura | Open-Meteo Forecast API | 16 días | Diaria |
-| Anomalía de temperatura del mar Niño 1+2 | NOAA CPC (`wksst9120.for`) | 1990 – hoy | Semanal |
+| Anomalía del mar Niño 1+2 | NOAA CPC (`wksst9120.for`) | 1990 – hoy | Semanal |
 | ONI | NOAA CPC (`oni.ascii.txt`) | 1950 – hoy | Trimestral móvil |
 
-Ninguna de estas fuentes requiere API key y todas son de uso libre. No contienen datos personales.
+## Otros datos
 
-## Datos simulados (`simulate.py`)
+Población, altitud y acceso a agua por red de cada distrito son **aproximados** (orden de magnitud INEI), no un censo.
 
-Son casos semanales por distrito de 5 enfermedades, generados a partir del clima real.
+## Privacidad
 
-**Dengue.** Usa un modelo de renovación: los casos de esta semana son la importación más R_t × los casos recientes (intervalo serial de unas 2 semanas). R_t depende de:
-- la lluvia de hace 2 a 6 semanas, que forma criaderos;
-- una temperatura óptima cercana a 28 °C;
-- la altitud (sobre 2000 m casi no hay vector);
-- el agua almacenada en hogares sin red;
-- la inmunidad que deja un brote (susceptibles según los casos de las últimas 52 semanas);
-- un efecto leve del Niño 1+2.
+Todo es agregado por distrito y semana. No hay datos personales.
 
-Se agrega ruido no observado (fumigaciones, microclima) y **subregistro**: entre 15% y 95% de los casos se notifica cada semana.
+## Uso
 
-**Las otras cuatro.** Son conteos con sobre-dispersión (binomial negativa):
-
-| Enfermedad | Qué la impulsa |
-|---|---|
-| Leptospirosis | Lluvia intensa e inundaciones |
-| EDA | Calor, falta de agua segura y daño del desagüe tras inundaciones |
-| Golpe de calor | Temperatura máxima sobre 30 °C |
-| IRA | Cambios bruscos de temperatura y época fría |
-
-**Historia estable.** Cada distrito y cada proceso (brotes, notificación, otras enfermedades) usan su propio generador aleatorio (semilla + distrito + propósito). Al agregar semanas nuevas, las ya simuladas no cambian: reentrenar cada semana no reescribe el pasado (lo verifica un test).
-
-**Calibración.** Las grandes epidemias simuladas caen en 2017 (Niño costero) y 2023 (ciclón Yaku), igual que en la realidad. Como referencia de orden de magnitud, el MINSA notificó 273 684 casos de dengue a nivel nacional en 2023 (alerta AE-CDC-002-2024).
-
-## Distritos
-Son 47 distritos de Tumbes, Piura y Lambayeque, listados en `src/config.py`. La población (orden INEI 2017) y el porcentaje de hogares con agua por red son **aproximados**.
-
-## Siguiente paso con datos reales
-Reemplazar `simulate.py` por la carga de las salas situacionales del CDC-MINSA (dengue, leptospirosis, EDA e IRA por distrito y semana) cuando haya un formato tabular disponible. El resto del pipeline no cambia.
+Apoyo a la decisión; no reemplaza la vigilancia oficial del MINSA ni los comunicados del ENFEN.

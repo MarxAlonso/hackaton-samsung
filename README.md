@@ -15,7 +15,9 @@ Hackathon ISIL 2026 · Sitio publicado: https://alerta-salud-nino.marxchip99.wor
 ```
 ml/ (Python: solo entrena y exporta)
   ingest.py    → clima real (Open-Meteo) + El Niño (NOAA); descarga incremental (solo días nuevos)
-  simulate.py  → casos semanales simulados a partir del clima real (historia estable entre corridas)
+  ingest_cases.py → descarga los casos reales del CDC-MINSA (solo si el archivo cambió)
+  real_cases.py   → semanas epidemiológicas, cruce por UBIGEO, descarta el último año (provisional)
+  build_cases.py  → tabla semanal de casos reales (+ golpe de calor simulado en simulate.py)
   features.py  → variables y objetivos (sin fuga de datos), canal endémico
   train.py     → GradientBoosting (brote) + cuantiles P10/P50/P90 (casos) + logística (otras 4)
   monitor.py   → deriva de datos (PSI), desempeño por trimestre, decisión de reentrenar
@@ -34,22 +36,23 @@ api/ (FastAPI + Docker)
   GET /health · /distritos · /metricas · /monitoreo   POST /predict · /predict/batch · /optimize
 ```
 
-El modelo de **producción** (el retador promovido) predice "hoy"; los replays de 2017 y 2023 usan el **campeón de evaluación**, entrenado solo con 2015–2021, que nunca vio esas epidemias.
+El modelo de **producción** (el retador promovido) predice "hoy" (solo clima mientras no haya casos recientes); los replays de 2017 y 2023 usan el **campeón de evaluación**, entrenado solo con 2015–2021, que nunca vio esas epidemias.
 
-## Resultados (prueba 2022–2026, periodo que el modelo de evaluación nunca vio)
+## Resultados (prueba 2022–nov. 2024, con casos reales del CDC-MINSA)
 
-| Métrica | Modelo | Línea base |
-|---|---|---|
-| AUC brote de dengue (4 semanas) | 0,984 | 0,790 (canal endémico) |
-| Recall (brotes anticipados) | 69% | 59% |
-| AUC en temporada con casos activos | 0,932 | — |
-| PR-AUC anticipando un brote **nuevo** | 0,62 | 0,017 (azar) |
-| Error en casos (MAE, 4 semanas) | 12,6 | 27,1 (repetir últimas 4 semanas) |
-| Casos reales dentro del rango P10–P90 | 95% | — |
+Hay **dos modelos**. Los casos oficiales llegan con meses de retraso (el último que tenemos es del 23 dic. 2024), así que el de **hoy usa solo clima**; el que usa casos recientes se aplica en los replays y cuando lleguen datos de 2026.
 
-El AUC global se infla con semanas fáciles; la métrica exigente es anticipar un brote nuevo. Detalle en [`ml/reports/model_card.md`](ml/reports/model_card.md).
+| Métrica | Con casos recientes | Línea base (canal endémico) | Solo clima (hoy) |
+|---|---|---|---|
+| AUC brote de dengue (4 semanas) | 0,931 | 0,857 | 0,715 |
+| Recall | 76% | 75% | 17% |
+| Error en casos (MAE) | 40,2 | 58,7 | 80,1 |
+| Casos reales dentro del rango P10–P90 | 74% | — | 50% |
+| PR-AUC anticipando un brote **nuevo** | 0,378 (azar 0,109) | — | 0,291 |
 
-**Monitoreo y reentrenamiento (hoy):** el mar Niño 1+2 está en +5,3 °C, fuera del rango de entrenamiento (máx. 2,7 °C). El monitoreo lo detecta (PSI 7,3; Brier reciente 0,053 vs 0,022), el retador mejora el Brier 32% en las últimas 26 semanas y se promueve a producción.
+La prueba incluye las epidemias de 2023 y 2024 (42,8% de las semanas-distrito en brote contra ~15% en el entrenamiento). Con casos recientes el modelo ordena bien pero **subestima** la intensidad. **Solo con clima sirve para decidir qué distritos vigilar primero, no para calcular cuántos casos habrá** (su error de probabilidades es igual o peor que predecir la tasa base), por eso su confianza nunca pasa de "media". Detalle y evaluación año por año en [`ml/reports/model_card.md`](ml/reports/model_card.md).
+
+**Monitoreo y reentrenamiento:** el mar Niño 1+2 (+5,3 °C) está fuera del rango de entrenamiento (máx. 2,7 °C); el monitoreo lo detecta. El retador compite en un año completo de datos: con solo clima no mejora lo suficiente (2% < 5%) y se mantiene el campeón; con casos recientes mejora 18% y se promueve.
 
 **Lluvias extremas:** los días-distrito sobre el umbral extremo fueron 112 en 2017 y 45 en 2023 (año no usado para fijar los umbrales) frente a ~0 en años normales.
 
@@ -61,8 +64,8 @@ El AUC global se infla con semanas fáciles; la métrica exigente es anticipar u
 cd ml
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Linux/Mac: .venv/bin/python
-bash run_pipeline.sh          # ingesta → simulación → entrenamiento → monitoreo → reentrenamiento → exportación
-python -m pytest tests -q     # 19 pruebas del pipeline y de las alertas
+bash run_pipeline.sh          # ingesta de clima → ingesta de casos → tabla de casos → entrenamiento → monitoreo → reentrenamiento → exportación
+python -m pytest tests -q     # 38 pruebas del pipeline, los datos reales y las alertas
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # experimentos (también en reports/experiments.jsonl)
 ```
 
@@ -106,13 +109,14 @@ Las alertas usan **Web Push estándar** (no dependen de ninguna marca): en la vi
 
 ### 5. Reentrenamiento semanal automático
 
-`.github/workflows/retrain.yml` corre cada lunes: ingesta incremental, simulación, entrenamiento, monitoreo, campeón vs retador, tests y, solo si todo pasa, publica el sitio y envía las alertas. Necesita los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` (y `VAPID_PRIVATE_KEY` para las alertas) en el repositorio. También se lanza a mano desde la pestaña Actions.
+`.github/workflows/retrain.yml` corre cada lunes: ingesta incremental de clima y casos, entrenamiento, monitoreo, campeón vs retador, tests y, solo si todo pasa, publica el sitio y envía las alertas. Necesita los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` (y `VAPID_PRIVATE_KEY` para las alertas) en el repositorio. También se lanza a mano desde la pestaña Actions.
 
 ## Datos: qué es real y qué es simulado
 
-- **Real:** clima diario 2015–2026 por distrito (Open-Meteo, reanálisis ERA5), pronóstico de 16 días, anomalía semanal del mar Niño 1+2 e índice ONI (NOAA).
-- **Simulado:** casos semanales de las 5 enfermedades, generados con mecanismos epidemiológicos a partir del clima real ([`ml/reports/dataset_card.md`](ml/reports/dataset_card.md)). Por eso los brotes simulados caen en 2017 y 2023. Cada distrito tiene su propio flujo aleatorio, así que agregar semanas nuevas no reescribe el pasado. El CDC-MINSA publica los casos por distrito sobre todo en PDF; conectarlos es el siguiente paso.
-- **Supuestos del plan de brigadas** (efectividad 30%, 15 000 habitantes por brigada, costos de ejemplo): editables y a validar con la DIRESA.
+- **Real:** casos de dengue, diarreas (EDA), infecciones respiratorias (IRA) y leptospirosis del **CDC-MINSA** (Plataforma Nacional de Datos Abiertos, licencia ODC-By) hasta el 23 dic. 2024; casos de dengue de Piura 2025–2026 del Gobierno Regional (solo como contexto, no entrenan); clima diario 2015–2026 por distrito (Open-Meteo, ERA5), pronóstico de 16 días, anomalía semanal del mar Niño 1+2 e índice ONI (NOAA).
+- **Año provisional descartado:** el último año del archivo nacional (2025) está incompleto (Piura: 1 117 casos contra 12 242 del Gobierno Regional), así que no se usa. Detalle en [`ml/reports/dataset_card.md`](ml/reports/dataset_card.md).
+- **Simulado:** solo el **golpe de calor** (no hay fuente abierta), a partir de la temperatura máxima real.
+- **Supuestos del plan de brigadas** (efectividad 30%, 15 000 habitantes por brigada, costos de ejemplo S/ 10 000 por brigada y S/ 800 por caso): editables y a validar con la DIRESA.
 
 ## Uso responsable
 
@@ -120,4 +124,4 @@ Es un sistema de **apoyo a la decisión**: no reemplaza la vigilancia epidemiol�
 
 ## Licencia
 
-[MIT](LICENSE). Los casos de enfermedad son simulados; el sistema es de apoyo a la decisión y no reemplaza la vigilancia oficial.
+[MIT](LICENSE). Los casos reales son del CDC-MINSA (ODC-By); el golpe de calor es simulado. El sistema es de apoyo a la decisión y no reemplaza la vigilancia oficial.

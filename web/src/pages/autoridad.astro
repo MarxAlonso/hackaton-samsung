@@ -161,7 +161,29 @@ import { icon } from "../lib/icons";
       kpi("mosquito", "Casos de dengue esperados", fmt(sum((p) => p.riesgos.dengue.casos_p50 ?? 0)), `rango ${fmt(sum((p) => p.riesgos.dengue.casos_p10 ?? 0))} – ${fmt(sum((p) => p.riesgos.dengue.casos_p90 ?? 0))}`) +
       kpi("wave", "Mar (Niño 1+2)", `${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C`, `pruebas rápidas sugeridas: ${fmt(sum((p) => p.recursos.pruebas))}`) +
       kpi("rain", "Distritos con lluvia extrema", `${list.filter((p) => p.inundacion.nivel !== "bajo").length} de ${list.length}`,
-        s.ventana_lluvia.con_pronostico ? `pronóstico a 16 días (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)` : `en los 14 días previos (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)`);
+        s.ventana_lluvia.con_pronostico ? `pronóstico a 16 días (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)` : `en los 14 días previos (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)`) +
+      replayKpi(list);
+  }
+
+  /** En los replays se conoce lo que pasó de verdad: se mide cuánto acertó la alerta. */
+  function replayKpi(list: DistrictPrediction[]) {
+    const withReal = list.filter((p) => p.real);
+    if (!withReal.length) return "";
+    const right = withReal.filter((p) => (p.riesgos.dengue.prob >= 0.5) === p.real!.brote).length;
+    const inside = withReal.filter((p) => p.real!.casos_4_semanas >= (p.riesgos.dengue.casos_p10 ?? 0) && p.real!.casos_4_semanas <= (p.riesgos.dengue.casos_p90 ?? 0)).length;
+    return `<div class="card kpi"><span class="ico-box brand">${icon("target", 22)}</span><div><span class="eyebrow">Acierto de la alerta</span><strong>${right} de ${withReal.length}</strong><span class="small muted">distritos bien clasificados (brote sí/no); casos reales dentro del rango en ${inside}</span></div></div>`;
+  }
+
+  /** Aviso bajo el titular del distrito: de dónde sale la cifra o qué pasó realmente. */
+  function dataNote(p: DistrictPrediction) {
+    if (p.modelo_tipo === "clima") {
+      return `<p class="data-note warn">${icon("info", 18)}<span><strong>Estimación solo con clima.</strong> El último caso oficial de este distrito es de ${weekLabel(p.ultimo_dato_casos)}: sin casos recientes el modelo ordena bien los distritos por riesgo, pero calcula mal cuántos casos habrá. Úsala para priorizar la vigilancia, no como cifra exacta.</span></p>`;
+    }
+    if (p.real) {
+      const r = p.riesgos.dengue, inside = p.real.casos_4_semanas >= (r.casos_p10 ?? 0) && p.real.casos_4_semanas <= (r.casos_p90 ?? 0);
+      return `<p class="data-note">${icon(inside ? "checkCircle" : "info", 18)}<span><strong>Lo que realmente pasó</strong> (CDC-MINSA): ${fmt(p.real.casos_4_semanas)} casos en las 4 semanas siguientes — ${p.real.brote ? "hubo brote" : "no hubo brote"}. El modelo anticipó ${fmt(r.casos_p50 ?? 0)} (rango ${fmt(r.casos_p10 ?? 0)}–${fmt(r.casos_p90 ?? 0)}) y ${pct(r.prob)} de probabilidad: ${inside ? "el resultado cayó dentro del rango" : "el resultado quedó fuera del rango"}.</span></p>`;
+    }
+    return "";
   }
 
   function renderMap(list: DistrictPrediction[]) {
@@ -251,6 +273,7 @@ import { icon } from "../lib/icons";
           <p class="eyebrow">${d.province}, ${d.department} · ${fmt(d.population)} hab. · ${d.altitude} m s. n. m. · agua por red ${Math.round(d.water_access * 100)}%</p>
           <h2>${d.district} ${badge(r.nivel)}</h2>
           <div id="headline">${headline(d.district, r)}</div>
+          ${dataNote(p)}
         </div>
         <div class="climate-chips">
           <span class="chip-c">${icon("rain", 16)} ${fmt(p.clima.lluvia_2_a_6sem)} mm <small>lluvia 2–6 sem. atrás</small></span>
@@ -305,6 +328,7 @@ import { icon } from "../lib/icons";
         distrito: d.district, departamento: d.department, poblacion: d.population, dengue: r, clima: p.clima, recursos_sugeridos: p.recursos,
         otras: Object.fromEntries(Object.entries(p.riesgos).filter(([k]) => k !== "dengue").map(([k, v]) => [k, pct(v.prob)])),
         nino12_anomalia_C: s.nino12, lluvias_extremas: p.inundacion,
+        modelo_tipo: p.modelo_tipo, ultimo_dato_oficial_de_casos: weekLabel(p.ultimo_dato_casos), lo_que_realmente_paso: p.real ?? null,
       };
       const out = await explain("autoridad", contexto, fallbackText(d.district, p));
       box.textContent = out.texto; btn.disabled = false;
@@ -336,9 +360,13 @@ import { icon } from "../lib/icons";
     if (activeTab === "hist") {
       chartSummary = renderHistory($("#chart"), series, selected, { baseWeek: s.semana, horizon: app.horizonte_semanas, risk: currentRisk, weeksBack, showActual: scenarioSel.value !== "actual" });
       const fc = app.pronostico[selected];
-      $("#fc-note").innerHTML = scenarioSel.value === "actual" && fc
+      const hs = chartSummary as { ultimo_dato_oficial?: string | null; ultimo_dato_regional_piura?: string | null };
+      const casosNote = scenarioSel.value === "actual"
+        ? `<br>${icon("info", 16)} Último dato oficial de casos (CDC-MINSA): ${hs.ultimo_dato_oficial ?? "sin datos"}. ${hs.ultimo_dato_regional_piura ? `Casos del Gobierno Regional de Piura hasta ${hs.ultimo_dato_regional_piura} (verde). ` : ""}Los casos oficiales llegan con meses de retraso.`
+        : "";
+      $("#fc-note").innerHTML = (scenarioSel.value === "actual" && fc
         ? `${icon("rain", 16)} Pronóstico Open-Meteo ${weekLabel(fc.desde)} – ${weekLabel(fc.hasta)}: ${fmt(fc.lluvia_16d)} mm de lluvia, máxima de ${fc.tmax_16d} °C.`
-        : `${icon("info", 16)} Modo replay: a la derecha de la línea punteada se ve lo que realmente pasó, para compararlo con el rango pronosticado.`;
+        : `${icon("info", 16)} Modo replay: a la derecha de la línea punteada se ve lo que realmente pasó (casos reales del CDC-MINSA), para compararlo con el rango pronosticado.`) + casosNote;
     } else if (activeTab === "heat") {
       const rows = visible().map((pred) => ({ district: district(pred.district_id), pred }));
       chartSummary = renderHeatmap($("#heatmap"), series, { baseWeek: s.semana, weeksBack: Math.min(weeksBack, 104), horizon: app.horizonte_semanas, rows, selected, onSelect: select, metric });
@@ -354,7 +382,7 @@ import { icon } from "../lib/icons";
     const d = district(selected);
     if (activeTab === "hist" && cs) {
       const peak = cs.picos[0];
-      return `• Tendencia de las últimas semanas: ${cs.tendencia}. ${cs.semanas_en_brote} de ${cs.ventana.semanas} semanas estuvieron sobre el umbral de brote.\n` +
+      return `• ${cs.tendencia === "sin datos" ? `No hay casos oficiales en las últimas semanas (último dato: ${cs.ultimo_dato_oficial ?? "sin datos"}).` : `Tendencia de las últimas semanas: ${cs.tendencia}.`} ${cs.semanas_en_brote} de ${cs.ventana.semanas} semanas estuvieron sobre el umbral de brote.\n` +
         (peak ? `• Pico principal: ${fmt(peak.casos)} casos la semana del ${peak.semana} (${peak.veces_umbral}× el umbral).\n` : "") +
         `• Pronóstico a 4 semanas: entre ${fmt(cs.pronostico_4_semanas.p10)} y ${fmt(cs.pronostico_4_semanas.p90)} casos (probable ${fmt(cs.pronostico_4_semanas.p50)}).` +
         (cs.lo_que_paso ? `\n• Lo que pasó: ${fmt(cs.lo_que_paso.casos_reales_4_semanas)} casos reales, ${cs.lo_que_paso.dentro_del_rango ? "dentro" : "fuera"} del rango pronosticado.` : "");
@@ -410,9 +438,12 @@ import { icon } from "../lib/icons";
     const replay = $("#replay");
     replay.hidden = scenarioSel.value === "actual";
     replay.innerHTML = `<strong>Modo replay — ${s.etiqueta}.</strong> El sistema predice como si estuviéramos en la semana del
-      ${weekLabel(s.semana)}. En "Historia y pronóstico" puedes comparar la predicción con lo que realmente pasó.
+      ${weekLabel(s.semana)}. Los casos son los reales del CDC-MINSA: en cada distrito puedes comparar la predicción con lo que realmente pasó.
       ${scenarioSel.value === "2023" ? "El modelo se entrenó solo con datos hasta 2021: nunca vio esta epidemia." : ""}`;
-    $("#model-note").innerHTML = `${icon("cpu", 14)} Modelo: ${s.modelo.id === "prod" ? `en producción (${s.modelo.origen}, datos hasta ${weekLabel(s.modelo.entrenado_hasta)})` : "campeón de evaluación, entrenado solo con 2015–2021"}`;
+    const goreHasta = app.datos.cobertura.dengue_gore_piura?.hasta;
+    $("#model-note").innerHTML = s.modelo.familia === "clima"
+      ? `${icon("cpu", 14)} Estimación solo con clima: el último caso oficial (CDC-MINSA) es de ${weekLabel(app.datos.ultimo_caso_oficial)}${goreHasta ? `; en Piura se muestran además los casos del Gobierno Regional hasta ${weekLabel(goreHasta)}` : ""}.`
+      : `${icon("cpu", 14)} Casos reales del CDC-MINSA · modelo con casos recientes, entrenado solo con 2015–2021 (no vio 2022 en adelante).`;
     renderKpis(list); renderMap(list); renderRanking(list);
     const target = list.find((p) => p.district_id === selected) ?? list[0];
     if (target) select(target.district_id);

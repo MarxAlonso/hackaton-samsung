@@ -94,6 +94,7 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
         <p>${lvl === "bajo"
           ? `${h.text} Ningún riesgo está por encima de lo normal ahora; abajo tienes las medidas más útiles para tu distrito.`
           : `${h.text} Lo que más debes vigilar: <strong>${main}</strong>.`}</p>
+        ${p.modelo_tipo === "clima" ? `<p class="small muted inline-ico">${icon("info", 16)} Estimación basada en el clima: el último dato oficial de casos es de ${weekLabel(p.ultimo_dato_casos)}. Lo más confiable hoy es el pronóstico de lluvias.</p>` : ""}
         <p class="small muted inline-ico">${icon("thermometer", 16)} Máxima reciente ${p.clima.tmax} °C &nbsp;·&nbsp; ${icon("rain", 16)} Lluvia de las últimas semanas ${p.clima.lluvia_2_a_6sem} mm</p>
       </div>`;
 

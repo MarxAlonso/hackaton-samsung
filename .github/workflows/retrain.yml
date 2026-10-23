@@ -25,14 +25,16 @@ jobs:
 
       - run: pip install -r ml/requirements.txt
 
-      # El clima histórico se guarda entre ejecuciones: así la ingesta solo pide los días nuevos
+      # El clima y los casos se guardan entre ejecuciones: la ingesta solo pide lo nuevo (los CSV del CDC pesan ~400 MB)
       - uses: actions/cache@v4
         with:
           path: ml/data/raw
-          key: clima-${{ github.run_id }}
-          restore-keys: clima-
+          key: datos-${{ github.run_id }}
+          restore-keys: |
+            datos-
+            clima-
 
-      - name: Pipeline (ingesta → simulación → entrenamiento → monitoreo → reentrenamiento → exportación)
+      - name: Pipeline (ingesta de clima y casos → entrenamiento → monitoreo → reentrenamiento → exportación)
         run: bash ml/run_pipeline.sh
 
       - name: Tests del pipeline

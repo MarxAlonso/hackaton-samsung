@@ -1,6 +1,8 @@
 // Tipos y carga de los archivos que exporta el pipeline de Python (ml/src/export.py)
 
 export type Nivel = "alto" | "medio" | "bajo";
+/** "casos" = modelo que usa casos recientes; "clima" = solo clima (hoy, cuando el último caso oficial es antiguo). */
+export type ModeloTipo = "casos" | "clima";
 export type DiseaseKey = "dengue" | "leptospirosis" | "eda" | "golpe_calor" | "ira";
 
 export interface District {
@@ -40,6 +42,10 @@ export interface FloodInfoData {
 
 export interface DistrictPrediction {
   district_id: string;
+  modelo_tipo: ModeloTipo;
+  ultimo_dato_casos: string;
+  /** Solo en los replays: lo que realmente pasó en las 4 semanas siguientes (casos reales del CDC-MINSA). */
+  real?: { casos_4_semanas: number; brote: boolean };
   inundacion: FloodInfoData;
   features: Record<string, number>;
   riesgos: Record<DiseaseKey, Risk>;
@@ -49,23 +55,16 @@ export interface DistrictPrediction {
   clima: { lluvia_ultimas_2sem: number; lluvia_2_a_6sem: number; tmax: number; tmedia: number };
 }
 
-export interface History {
-  semanas: string[];
-  dengue: number[];
-  canal: number[];
-  lluvia: number[];
-}
-
 export interface Scenario {
   etiqueta: string;
   semana: string;
   nino12: number;
   oni: number;
-  modelo: { id: "prod" | "eval"; origen: string; entrenado_hasta: string };
+  modelo: { id: "prod" | "eval"; origen: string; entrenado_hasta: string; familia: ModeloTipo; distritos_con_casos_recientes: number };
+  tasa_base: Record<ModeloTipo, Record<string, number>>;
   ventana_lluvia: { hasta: string; con_pronostico: boolean };
   inundacion_serie: Record<string, { fechas: string[]; mm: number[]; r3: (number | null)[]; n_obs: number }>;
   distritos: DistrictPrediction[];
-  historia: Record<string, History>;
 }
 
 export interface SimpleModel {
@@ -84,13 +83,19 @@ export interface AppData {
   referencia_2023: Record<string, Record<string, number>>;
   pronostico: Record<string, { lluvia_16d: number; tmax_16d: number; desde: string; hasta: string }>;
   modelo: {
+    features: Record<ModeloTipo, string[]>;
     dengue_features: string[];
     rain_features: string[];
     temp_features: string[];
-    simple_features: string[];
-    simples: Record<string, SimpleModel>;
+    simple_features: Record<ModeloTipo, string[]>;
+    simples: Record<ModeloTipo, Record<string, SimpleModel>>;
     umbrales_nivel: { alto: number; medio: number };
-    tasa_base: Record<string, number>;
+  };
+  datos: {
+    cobertura: Record<string, { fuente: string; hasta: string; desde?: string; anio_provisional_descartado?: number | null; casos_total?: number }>;
+    licencia: string;
+    cita: string;
+    ultimo_caso_oficial: string;
   };
   metricas: any;
   monitoreo: any;
@@ -108,7 +113,8 @@ export interface AppData {
 /** Serie semanal completa (2015 → hoy) por distrito. Se carga solo en el panel de autoridad. */
 export interface SeriesData {
   semanas: string[];
-  distritos: Record<string, { dengue: number[]; inc: number[]; canal: number[]; lluvia: number[]; tmax: number[] }>;
+  /** dengue, inc y gore usan NaN donde el dato es desconocido (el archivo trae null). */
+  distritos: Record<string, { dengue: number[]; inc: number[]; canal: number[]; lluvia: number[]; tmax: number[]; gore: number[] | null }>;
 }
 
 let cache: Promise<AppData> | null = null;
@@ -122,9 +128,17 @@ export function loadData(): Promise<AppData> {
 
 let seriesCache: Promise<SeriesData> | null = null;
 export function loadSeries(): Promise<SeriesData> {
-  seriesCache ??= fetch("/data/series.json").then((r) => {
+  seriesCache ??= fetch("/data/series.json").then(async (r) => {
     if (!r.ok) throw new Error("No se pudo cargar series.json");
-    return r.json();
+    const data = await r.json();
+    // null = sin dato oficial: se convierte en NaN para que ningún gráfico lo confunda con cero
+    const nan = (a: (number | null)[] | null) => (a ? a.map((v) => (v === null ? NaN : v)) : null);
+    for (const d of Object.values<any>(data.distritos)) {
+      d.dengue = nan(d.dengue);
+      d.inc = nan(d.inc);
+      d.gore = nan(d.gore);
+    }
+    return data as SeriesData;
   });
   return seriesCache;
 }

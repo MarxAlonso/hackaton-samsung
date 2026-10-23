@@ -22,8 +22,10 @@ export function renderSeasons(el: HTMLElement, series: SeriesData, districtId: s
     const yr = iso.slice(0, 4);
     (byYear[yr] ??= Array(52).fill(NaN))[epiweek(iso) - 1] = s[metric][i];
   });
-  const years = Object.keys(byYear).filter((y) => Number(y) >= 2016).sort();
+  // Solo años con algún dato oficial: el año en curso puede no tener casos todavía
+  const years = Object.keys(byYear).filter((y) => Number(y) >= 2016 && byYear[y].some((v) => !isNaN(v))).sort();
   const current = years[years.length - 1];
+  const lastYear = series.semanas[series.semanas.length - 1].slice(0, 4);
   const highlight = new Set(["2017", "2023", current]);
   const colorOf = (y: string) => (y === current ? "var(--series-3)" : SEASON_COLORS[y] ?? "var(--border)");
 
@@ -64,7 +66,7 @@ export function renderSeasons(el: HTMLElement, series: SeriesData, districtId: s
         const px = x(t.peakW), py = y(t.peak);
         const left = px > W - M.right - 120;
         return `<circle cx="${px}" cy="${py}" r="4" fill="${colorOf(t.y)}" stroke="var(--surface)" stroke-width="1.5"/>
-          <text x="${left ? px - 8 : px + 8}" y="${py - 6}" font-size="12" font-weight="700" text-anchor="${left ? "end" : "start"}" fill="${colorOf(t.y)}">${t.y}${t.y === current ? " (hoy)" : ""} · pico ${metric === "inc" ? t.peak.toFixed(0) : fmt(t.peak)}</text>`;
+          <text x="${left ? px - 8 : px + 8}" y="${py - 6}" font-size="12" font-weight="700" text-anchor="${left ? "end" : "start"}" fill="${colorOf(t.y)}">${t.y}${t.y === current ? (current === lastYear ? " (hoy)" : " (último con datos)") : ""} · pico ${metric === "inc" ? t.peak.toFixed(0) : fmt(t.peak)}</text>`;
       }).join("")}
       <line class="xhair" x1="0" x2="0" y1="${M.top}" y2="${M.top + ih}" stroke="var(--text-3)" visibility="hidden"/>
       <circle class="xdot" r="0" visibility="hidden"/>
@@ -73,7 +75,7 @@ export function renderSeasons(el: HTMLElement, series: SeriesData, districtId: s
     <div class="chart-tooltip" hidden></div>
   </div>
   <div class="legend">
-    ${totals.map((t) => `<span><i style="background:${colorOf(t.y)}"></i>${t.y}${t.y === current ? " (en curso)" : ""}</span>`).join("")}
+    ${totals.map((t) => `<span><i style="background:${colorOf(t.y)}"></i>${t.y}${t.y === current ? (current === lastYear ? " (en curso)" : " (último con datos)") : ""}</span>`).join("")}
     <span><i style="background:var(--surface-3)"></i>Otros años</span>
   </div>
   <table class="mini">
@@ -89,7 +91,7 @@ export function renderSeasons(el: HTMLElement, series: SeriesData, districtId: s
   return {
     distrito: district.district,
     medida: unit,
-    temporadas: totals.map((t) => ({ anio: t.y, en_curso: t.y === current, total: Math.round(t.total), pico_semanal: Math.round(t.peak * 10) / 10, mes_del_pico: MONTHS[Math.min(11, Math.floor(t.peakW / 4.33))] })),
+    temporadas: totals.map((t) => ({ anio: t.y, en_curso: t.y === current && current === lastYear, total: Math.round(t.total), pico_semanal: Math.round(t.peak * 10) / 10, mes_del_pico: MONTHS[Math.min(11, Math.floor(t.peakW / 4.33))] })),
   };
 }
 
@@ -104,7 +106,9 @@ export function renderDistrictCompare(el: HTMLElement, series: SeriesData, a: Di
   const ra = sa.lluvia.slice(start, baseIdx + 1), rb = sb.lluvia.slice(start, baseIdx + 1);
 
   const iw = W - M.left - M.right, ih = H - M.top - M.bottom;
-  const yMax = niceMax(Math.max(5, ...va, ...vb) * 1.08);
+  const fin = (a: number[]) => a.filter(Number.isFinite);
+  const lastFin = (a: number[]) => { const f = a.filter(Number.isFinite); return f.length ? f[f.length - 1] : 0; };
+  const yMax = niceMax(Math.max(5, ...fin(va), ...fin(vb)) * 1.08);
   const x = (i: number) => M.left + (i / (weeks.length - 1)) * iw;
   const y = (v: number) => M.top + ih - (v / yMax) * ih;
   const xs = weeks.map((_, i) => x(i));
@@ -117,6 +121,8 @@ export function renderDistrictCompare(el: HTMLElement, series: SeriesData, a: Di
   });
   const every = Math.ceil(months.length / 14);
   const sum = (v: number[]) => v.reduce((p, c) => p + c, 0);
+  const okSum = (a: number[]) => { const f = a.filter(Number.isFinite); return f.length ? fmt(sum(f)) + (f.length < a.length ? ` <span class="small muted">(${a.length - f.length} sem. sin dato)</span>` : "") : `<span class="muted">sin dato oficial</span>`; };
+  const okMax = (a: number[]) => { const f = a.filter(Number.isFinite); return f.length ? fmt(Math.max(...f)) : `<span class="muted">—</span>`; };
   const stats = [[a, va, ra, sa, "var(--series-1)"], [b, vb, rb, sb, "var(--series-2)"]] as const;
 
   el.innerHTML = `
@@ -128,8 +134,8 @@ export function renderDistrictCompare(el: HTMLElement, series: SeriesData, a: Di
       ${months.filter((_, k) => k % every === 0).map((m) => `<text x="${x(m.i)}" y="${H - 10}" font-size="11" text-anchor="middle" fill="var(--text-3)">${m.label}</text>`).join("")}
       <path d="${linePath(xs, va.map(y))}" fill="none" stroke="var(--series-1)" stroke-width="2.4" stroke-linejoin="round"/>
       <path d="${linePath(xs, vb.map(y))}" fill="none" stroke="var(--series-2)" stroke-width="2.4" stroke-linejoin="round"/>
-      <text x="${xs[xs.length - 1] + 6}" y="${y(va[va.length - 1]) + 4}" font-size="12" font-weight="700" fill="var(--series-1)">${a.district}</text>
-      <text x="${xs[xs.length - 1] + 6}" y="${y(vb[vb.length - 1]) + 4 + (Math.abs(y(va[va.length - 1]) - y(vb[vb.length - 1])) < 14 ? 14 : 0)}" font-size="12" font-weight="700" fill="var(--series-2)">${b.district}</text>
+      <text x="${xs[xs.length - 1] + 6}" y="${y(lastFin(va)) + 4}" font-size="12" font-weight="700" fill="var(--series-1)">${a.district}</text>
+      <text x="${xs[xs.length - 1] + 6}" y="${y(lastFin(vb)) + 4 + (Math.abs(y(lastFin(va)) - y(lastFin(vb))) < 14 ? 14 : 0)}" font-size="12" font-weight="700" fill="var(--series-2)">${b.district}</text>
       <line class="xhair" x1="0" x2="0" y1="${M.top}" y2="${M.top + ih}" stroke="var(--text-3)" visibility="hidden"/>
       <circle class="xdot" r="0" visibility="hidden"/>
       <rect class="hit" x="${M.left}" y="${M.top}" width="${iw}" height="${ih}" fill="transparent"/>
@@ -139,7 +145,7 @@ export function renderDistrictCompare(el: HTMLElement, series: SeriesData, a: Di
   <div class="legend"><span><i style="background:var(--series-1)"></i>${a.district}</span><span><i style="background:var(--series-2)"></i>${b.district}</span></div>
   <table class="mini">
     <thead><tr><th>Distrito</th><th>Población</th><th>Casos en la ventana</th><th>Pico semanal</th><th>Lluvia acumulada</th><th>Agua por red</th></tr></thead>
-    <tbody>${stats.map(([d, v, r, s, col]) => `<tr><td><strong style="color:${col}">${d.district}</strong><br><span class="small muted">${d.department}</span></td><td>${fmt(d.population)}</td><td>${fmt(sum(s.dengue.slice(start, baseIdx + 1)))}</td><td>${fmt(Math.max(...s.dengue.slice(start, baseIdx + 1)))}</td><td>${fmt(sum(r))} mm</td><td>${Math.round(d.water_access * 100)}%</td></tr>`).join("")}</tbody>
+    <tbody>${stats.map(([d, v, r, s, col]) => `<tr><td><strong style="color:${col}">${d.district}</strong><br><span class="small muted">${d.department}</span></td><td>${fmt(d.population)}</td><td>${okSum(s.dengue.slice(start, baseIdx + 1))}</td><td>${okMax(s.dengue.slice(start, baseIdx + 1))}</td><td>${fmt(sum(r))} mm</td><td>${Math.round(d.water_access * 100)}%</td></tr>`).join("")}</tbody>
   </table>`;
 
   attachCrosshair(el, (i) => `<strong>Semana del ${weekLabel(weeks[i])}</strong><br><span style="color:var(--series-1);font-weight:700">${a.district}</span>: ${va[i].toFixed(1)} por 100 mil · ${fmt(ra[i])} mm<br><span style="color:var(--series-2);font-weight:700">${b.district}</span>: ${vb[i].toFixed(1)} por 100 mil · ${fmt(rb[i])} mm`,
@@ -149,8 +155,10 @@ export function renderDistrictCompare(el: HTMLElement, series: SeriesData, a: Di
     ventana: { desde: weekLabel(weeks[0]), hasta: weekLabel(weeks[weeks.length - 1]) },
     distritos: stats.map(([d, v, r, s]) => ({
       distrito: d.district, departamento: d.department, poblacion: d.population, agua_por_red_pct: Math.round(d.water_access * 100),
-      casos: sum(s.dengue.slice(start, baseIdx + 1)), pico_semanal_casos: Math.max(...s.dengue.slice(start, baseIdx + 1)),
-      incidencia_acumulada_100k: Math.round(sum(v)), lluvia_acumulada_mm: Math.round(sum(r)),
+      casos: fin(s.dengue.slice(start, baseIdx + 1)).length ? sum(fin(s.dengue.slice(start, baseIdx + 1))) : null,
+      pico_semanal_casos: fin(s.dengue.slice(start, baseIdx + 1)).length ? Math.max(...fin(s.dengue.slice(start, baseIdx + 1))) : null,
+      incidencia_acumulada_100k: fin(v).length ? Math.round(sum(fin(v))) : null, lluvia_acumulada_mm: Math.round(sum(r)),
+      semanas_sin_dato_oficial: v.length - fin(v).length,
     })),
   };
 }

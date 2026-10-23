@@ -32,7 +32,8 @@ export interface HeatmapSummary {
   semanas_observadas: number;
   distritos_mas_afectados_ultimas_4_semanas: { distrito: string; valor: number }[];
   distritos_con_mayor_pronostico: { distrito: string; valor_por_semana: number }[];
-  distritos_sin_casos_recientes: number;
+  distritos_sin_dato_oficial_reciente: number;
+  nota?: string;
 }
 
 export function renderHeatmap(el: HTMLElement, series: SeriesData, o: HeatmapOpts): HeatmapSummary {
@@ -53,7 +54,9 @@ export function renderHeatmap(el: HTMLElement, series: SeriesData, o: HeatmapOpt
     return [...obs, ...Array(o.horizon).fill(fc)];
   });
   const edges = binEdges(matrix.flat());
+  const NODATA = "var(--surface-3)";
   const color = (v: number) => {
+    if (!Number.isFinite(v)) return NODATA;   // sin dato oficial: nunca se pinta como cero
     if (v <= 0) return `var(${RAMP[0]})`;
     let k = 1;
     while (k < RAMP.length - 1 && v > edges[k - 1]) k++;
@@ -92,6 +95,7 @@ export function renderHeatmap(el: HTMLElement, series: SeriesData, o: HeatmapOpt
     <span style="gap:2px">${RAMP.map((v) => `<i class="box" style="background:var(${v});width:18px"></i>`).join("")}</span>
     <span class="muted">0 → ${fmt(edges[edges.length - 1])}+</span>
     <span><i class="box" style="background:var(--surface-2);border:1px dashed var(--brand);width:16px"></i>Pronóstico (P50 por semana)</span>
+    <span><i class="box" style="background:var(--surface-3);width:16px"></i>Sin dato oficial</span>
     <span class="muted">Filas ordenadas por prioridad de hoy · clic en un distrito para ver su detalle</span>
   </div>`;
 
@@ -105,8 +109,10 @@ export function renderHeatmap(el: HTMLElement, series: SeriesData, o: HeatmapOpt
       const isFc = c >= nObs;
       const v = matrix[r][c];
       const label = isFc ? `Pronóstico, semana +${c - nObs + 1}` : `Semana del ${weekLabel(weeks[c])}`;
-      const extra = isFc ? "" : `<br>${fmt(s.dengue[start + c])} casos · lluvia ${fmt(s.lluvia[start + c])} mm`;
-      tip.innerHTML = `<strong>${district.district}</strong> · ${label}<br>${o.metric === "inc" ? `${v.toFixed(1)} por 100 mil` : `${fmt(v)} casos`}${extra}`;
+      const known = Number.isFinite(v);
+      const extra = isFc ? "" : `<br>${known ? `${fmt(s.dengue[start + c])} casos · ` : ""}lluvia ${fmt(s.lluvia[start + c])} mm`;
+      const value = !known ? "Sin dato oficial de casos" : o.metric === "inc" ? `${v.toFixed(1)} por 100 mil` : `${fmt(v)} casos`;
+      tip.innerHTML = `<strong>${district.district}</strong> · ${label}<br>${value}${extra}`;
       tip.hidden = false;
       const bx = rect.getBoundingClientRect(), wx = wrap.getBoundingClientRect();
       const lx = bx.left - wx.left + wrap.scrollLeft;
@@ -128,13 +134,16 @@ export function renderHeatmap(el: HTMLElement, series: SeriesData, o: HeatmapOpt
   // Desplaza al final (pronóstico) la primera vez
   wrap.scrollLeft = wrap.scrollWidth;
 
-  const recent = o.rows.map(({ district }, r) => ({ distrito: district.district, valor: Math.round(matrix[r].slice(nObs - 4, nObs).reduce((a, b) => a + b, 0) * 10) / 10 }));
+  const last4 = (r: number) => matrix[r].slice(nObs - 4, nObs);
+  const withData = o.rows.map(({ district }, r) => ({ distrito: district.district, v: last4(r), r })).filter((x) => x.v.every(Number.isFinite));
+  const recent = withData.map((x) => ({ distrito: x.distrito, valor: Math.round(x.v.reduce((a, b) => a + b, 0) * 10) / 10 }));
   const fc = o.rows.map(({ district }, r) => ({ distrito: district.district, valor_por_semana: Math.round(matrix[r][nObs] * 10) / 10 }));
   return {
     medida: unit,
     semanas_observadas: nObs,
     distritos_mas_afectados_ultimas_4_semanas: [...recent].sort((a, b) => b.valor - a.valor).slice(0, 6),
     distritos_con_mayor_pronostico: [...fc].sort((a, b) => b.valor_por_semana - a.valor_por_semana).slice(0, 6),
-    distritos_sin_casos_recientes: recent.filter((r) => r.valor === 0).length,
+    distritos_sin_dato_oficial_reciente: o.rows.length - withData.length,
+    nota: withData.length === 0 ? "Ningún distrito tiene casos oficiales en las últimas 4 semanas de la ventana: el pronóstico es solo con clima." : undefined,
   };
 }

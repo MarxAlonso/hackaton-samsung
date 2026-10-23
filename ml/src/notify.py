@@ -72,7 +72,8 @@ def compose(app: dict, district_id: str):
     parts = []
     dengue = p["riesgos"]["dengue"]
     if RANK[dengue["nivel"]] >= 1:
-        parts.append(f"dengue: {pct(dengue['prob'])} de probabilidad de brote en 4 semanas")
+        sufijo = " (estimado con el clima)" if p.get("modelo_tipo") == "clima" else ""
+        parts.append(f"dengue: {pct(dengue['prob'])} de probabilidad de brote en 4 semanas{sufijo}")
     for k in p["top_riesgos"]:
         if k != "dengue" and RANK[p["riesgos"][k]["nivel"]] >= 1:
             parts.append(f"{info[k]['nombre'].lower()} en riesgo {p['riesgos'][k]['nivel']}")

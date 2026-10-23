@@ -3,10 +3,11 @@ import Layout from "../layouts/Layout.astro";
 import { icon } from "../lib/icons";
 import app from "../../public/data/app.json";
 
-const m = app.metricas;
-const dm = m.dengue.modelo;
-const base = m.dengue.linea_base_canal_endemico;
-const casos = m.dengue.casos;
+const m: any = app.metricas;
+const A: any = m.dengue;          // modelo con casos recientes
+const C: any = m.dengue_clima;    // modelo solo clima (el de hoy)
+const datos: any = (app as any).datos;
+const pc = (v: number) => `${Math.round(v * 100)}%`;
 const NAMES: Record<string, string> = {
   rain_0_1: "Lluvia de las últimas 2 semanas",
   rain_2_6: "Lluvia de hace 2 a 6 semanas",
@@ -26,12 +27,12 @@ const NAMES: Record<string, string> = {
   week_sin: "Época del año (ciclo)",
   week_cos: "Época del año (fase)",
 };
-const importance = Object.entries(m.dengue.importancia_variables as Record<string, number>).slice(0, 8);
-const maxImp = importance[0][1];
+const top = (o: Record<string, number>, n = 7) => Object.entries(o).slice(0, n);
+const impA = top(A.importancia_variables), impC = top(C.importancia_variables);
 const DISEASE = app.contenido.enfermedades as Record<string, { nombre: string }>;
 
-// Diagrama de confiabilidad (predicho vs observado)
-const rel = m.dengue.confiabilidad as { predicho: number; observado: number; n: number }[];
+// Diagrama de confiabilidad (predicho vs observado) del modelo con casos
+const rel = A.confiabilidad as { predicho: number; observado: number; n: number }[];
 const S = 260, P = 34;
 const sx = (v: number) => P + v * (S - P - 10);
 const sy = (v: number) => S - P - v * (S - P - 10);
@@ -50,7 +51,7 @@ const qx = (i: number) => QL + (i + 0.5) * qSlot;
 const qbw = Math.min(28, qSlot * 0.66);
 const qy = (v: number) => QH - QB - (v / qMax) * (QH - QB - 16);
 const corrected = mon.estado === "reentrenar" && rt.decision === "promovido";
-const stateLabel = corrected ? "Deriva detectada y corregida" : mon.estado === "reentrenar" ? "Deriva detectada: se mantiene el campeón" : mon.estado === "vigilar" ? "Vigilar" : "Estable";
+const stateLabel = corrected ? "Deriva detectada y corregida" : mon.estado === "reentrenar" ? "Deriva detectada: el reentrenamiento no mejoró el modelo" : mon.estado === "vigilar" ? "Vigilar" : "Estable";
 const stateLevel = corrected ? "medio" : mon.estado === "reentrenar" ? "alto" : mon.estado === "vigilar" ? "medio" : "bajo";
 const driftLevel: Record<string, string> = { alerta: "alto", vigilar: "medio", estable: "bajo" };
 const driftLabel: Record<string, string> = { alerta: "Deriva fuerte", vigilar: "Vigilar", estable: "Estable" };
@@ -60,29 +61,84 @@ const fMax = Math.max(...yearsData.map(([, v]) => v), 1) * 1.1;
 const fSlot = (FW - FL - 10) / yearsData.length;
 const fy = (v: number) => FH - FB - (v / fMax) * (FH - FB - 16);
 const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
+const cov = datos.cobertura;
+const FUENTES = [
+  { k: "dengue", n: "Dengue", real: true, url: "https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-dengue" },
+  { k: "eda", n: "Diarreas (EDA)", real: true, url: "https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-enfermedad-diarreica-aguda-eda" },
+  { k: "ira", n: "Infecciones respiratorias (IRA)", real: true, url: "https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiologica-de-infecciones-respiratorias-agudas-ira" },
+  { k: "leptospirosis", n: "Leptospirosis", real: true, url: "https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-las-zoonosis" },
+  { k: "dengue_gore_piura", n: "Dengue 2025–2026 de Piura (contexto)", real: true, url: "https://www.datosabiertos.gob.pe/dataset/casos-de-dengue-en-la-regi%C3%B3n-piura-gobierno-regional-piura" },
+  { k: "golpe_calor", n: "Golpe de calor", real: false, url: "" },
+];
+const otras: Record<string, any> = m.otras_enfermedades, otrasClima: Record<string, any> = m.otras_enfermedades_clima;
+const lastQ = mon.ultimo_trimestre_con_casos;
+const nuevo = A.subconjuntos.anticipacion_brote_nuevo;
+const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 ---
 
-<Layout title="Cómo funciona" active="modelo" description="Datos, modelo, métricas y límites de Alerta Salud Niño.">
+<Layout title="Cómo funciona" active="modelo" description="Datos reales, modelo, métricas honestas y límites de Alerta Salud Niño.">
   <h1>Cómo funciona el modelo</h1>
-  <p class="muted lead">Ficha técnica (model card) resumida. Entrenado con {m.periodo_entrenamiento}; evaluado con {m.periodo_prueba}, un periodo que el modelo nunca vio e incluye la epidemia de 2023.</p>
+  <p class="muted lead">Ficha técnica resumida. Los casos son <strong>reales</strong> (CDC-MINSA, datos abiertos). El modelo se entrenó con {A.periodo_entrenamiento} y se evaluó con {A.periodo_prueba}: un periodo que no vio y que incluye las epidemias de 2023 y 2024.</p>
 
-  <section class="tiles">
-    <div class="card tile"><span class="eyebrow">Detecta brotes (AUC)</span><strong>{dm.auc}</strong><span class="small muted">canal endémico: {base.auc} · 1 = perfecto, 0,5 = azar</span></div>
-    <div class="card tile"><span class="eyebrow">Anticipa brotes nuevos</span><strong>{m.dengue.subconjuntos.anticipacion_brote_nuevo.pr_auc}</strong><span class="small muted">PR-AUC cuando el distrito aún está bajo el umbral; al azar sería {m.dengue.subconjuntos.anticipacion_brote_nuevo.tasa_brote}</span></div>
-    <div class="card tile"><span class="eyebrow">Brotes anticipados (recall)</span><strong>{Math.round(dm.recall * 100)}%</strong><span class="small muted">canal endémico: {Math.round(base.recall * 100)}%</span></div>
-    <div class="card tile"><span class="eyebrow">Precisión de alertas</span><strong>{Math.round(dm.precision * 100)}%</strong><span class="small muted">canal endémico: {Math.round(base.precision * 100)}%</span></div>
-    <div class="card tile"><span class="eyebrow">Error en casos (MAE, 4 semanas)</span><strong>{casos.mae_modelo_p50}</strong><span class="small muted">repetir últimas 4 semanas: {casos.mae_linea_base_ultimas_4_semanas}</span></div>
-    <div class="card tile"><span class="eyebrow">Rango que acierta</span><strong>{Math.round(casos.cobertura_p10_p90 * 100)}%</strong><span class="small muted">casos reales dentro del rango P10–P90 (ideal ≈ 80%)</span></div>
+  <section class="notice small">
+    <strong>Lo que dicen los datos reales, sin adornos.</strong> Cuando hay casos recientes el modelo funciona bien (AUC {A.modelo.auc}). Pero los casos oficiales llegan con meses de retraso:
+    el último que tenemos es de {fecha(datos.ultimo_caso_oficial)}. Por eso <strong>hoy se predice solo con clima</strong>, un modelo mucho más modesto (AUC {C.modelo.auc}) que sirve para
+    <em>ordenar qué distritos vigilar primero</em>, no para calcular cuántos casos habrá. Conseguir los casos de 2026 es lo que más mejoraría el sistema.
   </section>
 
-  <p class="notice small">El AUC global se ve muy alto porque muchas semanas son fáciles (temporada seca, distritos de altura).
-    En temporada de lluvias con casos activos el AUC es {m.dengue.subconjuntos.temporada_con_casos.auc}, y la métrica más exigente
-    —anticipar un brote nuevo— se muestra arriba. Así lo presentamos, sin inflar resultados.</p>
+  <section class="two">
+    <div class="card">
+      <h2 class="chart-title"><Fragment set:html={icon("activity", 20)} /> Con casos recientes</h2>
+      <p class="small muted">El modelo completo, cuando los casos están al día. Se usa en los replays de 2017 y 2023 y se usará hoy apenas lleguen datos de 2026.</p>
+      <div class="tiles">
+        <div class="tile"><span class="eyebrow">Detecta brotes (AUC)</span><strong>{A.modelo.auc}</strong><span class="small muted">{A.linea_base_nombre}: {A.linea_base.auc}</span></div>
+        <div class="tile"><span class="eyebrow">Anticipa brotes nuevos</span><strong>{nuevo.pr_auc}</strong><span class="small muted">PR-AUC; al azar sería {nuevo.tasa_brote}</span></div>
+        <div class="tile"><span class="eyebrow">Recall</span><strong>{pc(A.modelo.recall)}</strong><span class="small muted">línea base: {pc(A.linea_base.recall)}</span></div>
+        <div class="tile"><span class="eyebrow">Error en casos (MAE)</span><strong>{A.casos.mae_modelo_p50}</strong><span class="small muted">repetir 4 semanas: {A.casos.mae_linea_base_ultimas_4_semanas}</span></div>
+        <div class="tile"><span class="eyebrow">Rango que acierta</span><strong>{pc(A.casos.cobertura_p10_p90)}</strong><span class="small muted">casos reales dentro de P10–P90 (ideal ≈ 80%)</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="chart-title"><Fragment set:html={icon("rain", 20)} /> Solo clima (el de hoy)</h2>
+      <p class="small muted">Lluvia, temperatura, El Niño y calendario. Es lo único que llega al día; sirve para priorizar, con confianza limitada.</p>
+      <div class="tiles">
+        <div class="tile"><span class="eyebrow">Ordena el riesgo (AUC)</span><strong>{C.modelo.auc}</strong><span class="small muted">{C.linea_base_nombre}: {C.linea_base.auc}</span></div>
+        <div class="tile"><span class="eyebrow">Anticipa brotes nuevos</span><strong>{C.subconjuntos.anticipacion_brote_nuevo.pr_auc}</strong><span class="small muted">PR-AUC; al azar sería {C.subconjuntos.anticipacion_brote_nuevo.tasa_brote}</span></div>
+        <div class="tile"><span class="eyebrow">Error en casos (MAE)</span><strong>{C.casos.mae_modelo_p50}</strong><span class="small muted">peor que repetir las últimas 4 semanas ({C.casos.mae_linea_base_ultimas_4_semanas}), que hoy no se puede</span></div>
+        <div class="tile"><span class="eyebrow">Rango que acierta</span><strong>{pc(C.casos.cobertura_p10_p90)}</strong><span class="small muted">muy por debajo del 80% ideal: por eso la confianza nunca pasa de "media"</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="chart-title"><Fragment set:html={icon("calendar", 20)} /> Año por año: ¿qué pasa cuando el modelo ya vio la epidemia anterior?</h2>
+    <p class="small muted">Evaluación progresiva: para cada año el modelo se entrena con <strong>todo lo anterior</strong> y se prueba en ese año. "Sin información" es predecir siempre la tasa de brote del entrenamiento: si el error del modelo no es menor, no aporta nada.</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Año</th><th>Semanas-distrito en brote</th><th colspan="3">Con casos recientes</th><th colspan="3">Solo clima</th></tr>
+      <tr class="sub"><th></th><th></th><th>AUC</th><th>Error (Brier)</th><th>Rango acierta</th><th>AUC</th><th>Error (Brier)</th><th>Rango acierta</th></tr></thead>
+      <tbody>
+        {A.evaluacion_progresiva.map((r: any, i: number) => {
+          const c = C.evaluacion_progresiva[i];
+          return (
+            <tr>
+              <td><strong>{r.anio}</strong><br /><span class="small muted">entrena hasta {fecha(r.entrenamiento_hasta)}</span></td>
+              <td>{pc(r.tasa_brote)}</td>
+              <td>{r.auc}</td><td>{r.brier} <span class="small muted">(sin info: {r.brier_sin_informacion})</span></td><td>{pc(r.cobertura_p10_p90)}</td>
+              <td>{c.auc}</td><td>{c.brier} <span class="small muted">(sin info: {c.brier_sin_informacion})</span></td><td>{pc(c.cobertura_p10_p90)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    </div>
+    <p class="small muted">2023 fue una epidemia enorme: el 68% de las semanas-distrito estuvo en brote, contra ~15% en los años de entrenamiento. Con casos recientes el modelo la sigue bien (el error es 2 a 5 veces menor que "sin información"); solo con clima casi no mejora el error, pero sí ordena los distritos por riesgo.</p>
+  </section>
 
   <section class="two">
     <div class="card">
       <h2 class="chart-title"><Fragment set:html={icon("shield", 20)} /> ¿Podemos confiar en el porcentaje?</h2>
-      <p class="small muted">Si el modelo dice 70%, el brote debería ocurrir ~7 de cada 10 veces. Los puntos cerca de la diagonal indican probabilidades confiables.</p>
+      <p class="small muted">Modelo con casos. Si dice 70%, el brote debería ocurrir ~7 de cada 10 veces. Los puntos por encima de la diagonal muestran que <strong>subestima</strong> las epidemias de 2023–24 (que no vio): ordena bien, pero se queda corto.</p>
       <svg viewBox={`0 0 ${S} ${S}`} width="100%" style="max-width:420px" role="img" aria-label="Diagrama de confiabilidad">
         {[0, 0.5, 1].map((t) => (
           <>
@@ -104,15 +160,17 @@ const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
     </div>
 
     <div class="card">
-      <h2 class="chart-title"><Fragment set:html={icon("cpu", 20)} /> ¿En qué se fija el modelo?</h2>
-      <p class="small muted">Las 8 variables que más pesan. Los casos recientes dominan (un brote en curso tiende a seguir); el clima es lo que permite anticipar los brotes nuevos.</p>
+      <h2 class="chart-title"><Fragment set:html={icon("cpu", 20)} /> ¿En qué se fijan los modelos?</h2>
+      <p class="small muted"><strong>Con casos:</strong> los casos de esta semana pesan más que todo lo demás (un brote en curso tiende a seguir).</p>
       <ul class="imp">
-        {importance.map(([k, v]) => (
-          <li>
-            <span>{NAMES[k] ?? k}</span>
-            <span class="bar"><i style={`width:${(v / maxImp) * 100}%;background:var(--series-1)`}></i></span>
-            <span class="num">{Math.round(v * 100)}%</span>
-          </li>
+        {impA.map(([k, v]) => (
+          <li><span>{NAMES[k] ?? k}</span><span class="bar"><i style={`width:${(v / impA[0][1]) * 100}%;background:var(--series-1)`}></i></span><span class="num">{Math.round(v * 100)}%</span></li>
+        ))}
+      </ul>
+      <p class="small muted" style="margin-top:14px"><strong>Solo clima:</strong> sin casos, pesan el calendario del brote, El Niño y la lluvia acumulada de hace 2 a 3 meses.</p>
+      <ul class="imp">
+        {impC.map(([k, v]) => (
+          <li><span>{NAMES[k] ?? k}</span><span class="bar"><i style={`width:${(v / impC[0][1]) * 100}%;background:var(--series-2)`}></i></span><span class="num">{Math.round(v * 100)}%</span></li>
         ))}
       </ul>
     </div>
@@ -120,24 +178,28 @@ const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
 
   <section class="card">
     <h2 class="chart-title"><Fragment set:html={icon("activity", 20)} /> Otras enfermedades</h2>
-    <p class="small muted">Modelos más simples (regresión logística) que estiman la probabilidad de semanas de riesgo alto (casos sobre el percentil 80 del distrito).</p>
+    <p class="small muted">Modelos más simples (regresión logística) que estiman la probabilidad de semanas de riesgo alto (casos sobre el percentil 80 del distrito). Las cuatro primeras usan casos <strong>reales</strong>; el golpe de calor es simulado.</p>
+    <div class="table-wrap">
     <table>
-      <thead><tr><th>Enfermedad</th><th>AUC</th><th>Recall</th><th>Precisión</th><th>Detonante climático</th></tr></thead>
+      <thead><tr><th>Enfermedad</th><th>Casos</th><th>AUC con casos recientes</th><th>AUC solo clima (hoy)</th><th>Detonante climático</th></tr></thead>
       <tbody>
-        {Object.entries(m.otras_enfermedades as Record<string, { auc: number; recall: number; precision: number }>).map(([k, v]) => (
+        {Object.entries(otras).map(([k, v]: [string, any]) => (
           <tr>
-            <td>{DISEASE[k]?.nombre ?? k}</td><td>{v.auc}</td><td>{Math.round(v.recall * 100)}%</td><td>{Math.round(v.precision * 100)}%</td>
+            <td>{DISEASE[k]?.nombre ?? k}</td>
+            <td>{k === "golpe_calor" ? <span class="badge lvl-medio">simulados</span> : <span class="badge lvl-bajo">reales</span>}</td>
+            <td>{v.auc}</td><td>{otrasClima[k]?.auc ?? "—"}</td>
             <td class="muted small">{{ leptospirosis: "Lluvias intensas e inundaciones", eda: "Calor y falta de agua segura", golpe_calor: "Temperatura máxima extrema", ira: "Cambios bruscos de temperatura" }[k]}</td>
           </tr>
         ))}
       </tbody>
     </table>
+    </div>
   </section>
 
   <section class="card mon-head">
     <div>
       <h2 class="chart-title"><Fragment set:html={icon("refresh", 20)} /> Monitoreo y reentrenamiento automático</h2>
-      <p class="small muted">Cada semana el sistema revisa si los datos cambiaron, si el modelo sigue acertando y, si hace falta, prueba un modelo nuevo contra el actual.</p>
+      <p class="small muted">Cada semana el sistema revisa si los datos cambiaron, si el modelo de hoy sigue acertando y, si hace falta, prueba un modelo nuevo contra el actual.</p>
     </div>
     <span class={`badge lvl-${stateLevel}`}>{stateLabel}</span>
   </section>
@@ -148,7 +210,7 @@ const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
   <section class="two">
     <div class="card">
       <h2 class="chart-title"><Fragment set:html={icon("database", 20)} /> ¿Cambiaron los datos?</h2>
-      <p class="small muted">Índice de estabilidad (PSI) de la ventana {mon.ventana_reciente.desde} → {mon.ventana_reciente.hasta} frente a la misma época de 2015–2021. Menos de 0,10 = estable; más de 0,25 = deriva fuerte.</p>
+      <p class="small muted">Índice de estabilidad (PSI) de la ventana {mon.ventana_reciente.desde} → {mon.ventana_reciente.hasta} frente a la misma época de 2015–2021. Menos de 0,10 = estable; más de 0,25 = deriva fuerte. Solo se vigilan el clima y El Niño, porque son los datos que llegan al día.</p>
       <ul class="drift">
         {driftTop.map((d: any) => (
           <li>
@@ -160,17 +222,17 @@ const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
           </li>
         ))}
       </ul>
-      <p class="small muted">El mar Niño 1+2 hoy está en {mon.deriva_variables.find((d: any) => d.variable === "nino12")?.reciente_max} °C; en el entrenamiento original el máximo fue {mon.deriva_variables.find((d: any) => d.variable === "nino12")?.entrenamiento_max} °C: el modelo estaba extrapolando.</p>
+      <p class="small muted">El mar Niño 1+2 hoy está en {mon.deriva_variables.find((d: any) => d.variable === "nino12")?.reciente_max} °C; en el entrenamiento original el máximo fue {mon.deriva_variables.find((d: any) => d.variable === "nino12")?.entrenamiento_max} °C: el modelo extrapola.</p>
     </div>
 
     <div class="card">
       <h2 class="chart-title"><Fragment set:html={icon("chart", 20)} /> ¿Sigue acertando?</h2>
-      <p class="small muted">Error de las probabilidades (Brier, menos es mejor) del modelo de evaluación por trimestre. La línea es el error de validación; en rojo, más de 1,5× esa línea.</p>
+      <p class="small muted">Error de las probabilidades (Brier, menos es mejor) del modelo de hoy por trimestre, hasta {lastQ}, el último con casos oficiales conocidos. La línea es el error de validación; en rojo, más de 1,5× esa línea.</p>
       <svg viewBox={`0 0 ${QW} ${QH}`} width="100%" style="max-width:520px" role="img" aria-label="Error del modelo por trimestre">
         {[0, 0.5, 1].map((t) => (
           <>
             <line x1={QL} x2={QW - 10} y1={qy(t * qMax)} y2={qy(t * qMax)} stroke="var(--border)" />
-            <text x={QL - 6} y={qy(t * qMax) + 4} font-size="10" text-anchor="end" fill="var(--text-3)">{(t * qMax).toFixed(3)}</text>
+            <text x={QL - 6} y={qy(t * qMax) + 4} font-size="10" text-anchor="end" fill="var(--text-3)">{(t * qMax).toFixed(2)}</text>
           </>
         ))}
         <line x1={QL} x2={QW - 10} y1={qy(qRef)} y2={qy(qRef)} stroke="var(--threshold)" stroke-width="1.5" stroke-dasharray="5 4" />
@@ -184,25 +246,31 @@ const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
           </>
         ))}
       </svg>
-      <p class="small muted">Brier reciente (últimos 2 trimestres): <strong>{mon.brier_reciente}</strong> frente a <strong>{mon.brier_validacion}</strong> en validación.</p>
+      <p class="small muted">Brier reciente (últimos 2 trimestres con casos): <strong>{mon.brier_reciente}</strong> frente a <strong>{mon.brier_validacion}</strong> en validación.</p>
     </div>
   </section>
 
   <section class="card">
     <h2 class="chart-title"><Fragment set:html={icon("award", 20)} /> Campeón contra retador</h2>
-    <p class="small muted">Se entrena un modelo nuevo con todo lo etiquetado hasta {rt.ventana_comparacion.desde} y ambos se comparan en las {rt.ventana_comparacion.semanas} semanas siguientes ({rt.ventana_comparacion.desde} → {rt.ventana_comparacion.hasta}), que ninguno vio al entrenar.</p>
+    <p class="small muted">Se entrena un modelo nuevo con todo lo etiquetado hasta {rt.ventana_comparacion.desde} y ambos se comparan en las {rt.ventana_comparacion.semanas} semanas siguientes ({rt.ventana_comparacion.desde} → {rt.ventana_comparacion.hasta}, un año completo para no caer solo en la temporada baja), que ninguno vio al entrenar.</p>
+    <div class="table-wrap">
     <table>
       <thead><tr><th>Modelo</th><th>Brier</th><th>AUC</th><th>Error en casos (MAE)</th><th>Rango que acierta</th></tr></thead>
       <tbody>
-        <tr><td><strong>Campeón</strong> <span class="small muted">{rt.campeon.nombre}</span></td><td>{rt.campeon.brier}</td><td>{fmt1(rt.campeon.auc)}</td><td>{rt.campeon.mae_casos_p50}</td><td>{Math.round(rt.campeon.cobertura_p10_p90 * 100)}%</td></tr>
-        <tr><td><strong>Retador</strong> <span class="small muted">{rt.retador.nombre}</span></td><td>{rt.retador.brier}</td><td>{fmt1(rt.retador.auc)}</td><td>{rt.retador.mae_casos_p50}</td><td>{Math.round(rt.retador.cobertura_p10_p90 * 100)}%</td></tr>
+        <tr class="sub"><td colspan="5"><strong>Solo clima (el de hoy)</strong></td></tr>
+        <tr><td><strong>Campeón</strong> <span class="small muted">{rt.campeon.nombre}</span></td><td>{rt.campeon.brier}</td><td>{fmt1(rt.campeon.auc)}</td><td>{rt.campeon.mae_casos_p50}</td><td>{pc(rt.campeon.cobertura_p10_p90)}</td></tr>
+        <tr><td><strong>Retador</strong> <span class="small muted">{rt.retador.nombre}</span></td><td>{rt.retador.brier}</td><td>{fmt1(rt.retador.auc)}</td><td>{rt.retador.mae_casos_p50}</td><td>{pc(rt.retador.cobertura_p10_p90)}</td></tr>
+        <tr class="sub"><td colspan="5"><strong>Con casos recientes</strong> — {rt.familias.casos.decision}</td></tr>
+        <tr><td><strong>Campeón</strong></td><td>{rt.familias.casos.campeon.brier}</td><td>{fmt1(rt.familias.casos.campeon.auc)}</td><td>{rt.familias.casos.campeon.mae_casos_p50}</td><td>{pc(rt.familias.casos.campeon.cobertura_p10_p90)}</td></tr>
+        <tr><td><strong>Retador</strong></td><td>{rt.familias.casos.retador.brier}</td><td>{fmt1(rt.familias.casos.retador.auc)}</td><td>{rt.familias.casos.retador.mae_casos_p50}</td><td>{pc(rt.familias.casos.retador.cobertura_p10_p90)}</td></tr>
       </tbody>
     </table>
+    </div>
     <p class={`verdict ${rt.decision === "promovido" ? "ok" : ""}`}>
       <Fragment set:html={icon(rt.decision === "promovido" ? "checkCircle" : "info", 18)} />
-      <span><strong>{rt.decision === "promovido" ? "El retador fue promovido a producción." : "Se mantiene el campeón."}</strong> {rt.motivo} <span class="muted">{rt.regla}</span></span>
+      <span><strong>Modelo de hoy: {rt.decision === "promovido" ? "el retador fue promovido a producción." : "se mantiene el campeón."}</strong> {rt.motivo} <span class="muted">{rt.regla}</span> Agregar las epidemias de 2023–24 no mejora de forma clara al modelo solo-clima: su límite es la falta de casos recientes, no la cantidad de años.</span>
     </p>
-    <p class="small muted">Las predicciones de <strong>hoy</strong> usan el modelo en producción ({rt.modelo_en_produccion.origen}, datos hasta {rt.modelo_en_produccion.entrenado_hasta}). Los replays de 2017 y 2023 usan el campeón de evaluación, que nunca vio esas epidemias. Cada entrenamiento queda registrado (MLflow y <code>experiments.jsonl</code>).</p>
+    <p class="small muted">Los replays de 2017 y 2023 usan el campeón de evaluación, que nunca vio esas epidemias. Cada entrenamiento queda registrado (MLflow y <code>experiments.jsonl</code>).</p>
   </section>
 
   <section class="card">
@@ -228,61 +296,81 @@ const fmt1 = (v: number | null | undefined) => (v == null ? "—" : String(v));
     <p class="small muted">Rojo: 2017 (Niño costero) y 2023 (ciclón Yaku). No es un modelo entrenado con inundaciones reales (no hay inventario público por distrito): es un índice de umbrales, el enfoque habitual de las alertas por lluvia.</p>
   </section>
 
-  <section class="two">
-    <div class="card">
-      <h2 class="chart-title"><Fragment set:html={icon("database", 20)} /> Datos</h2>
-      <ul class="small">
-        <li><strong>Clima (real):</strong> lluvia, temperatura y humedad diarias 2015–2026 por distrito. Open-Meteo Archive API (reanálisis ERA5).</li>
-        <li><strong>El Niño (real):</strong> anomalía semanal del mar Niño 1+2 y el índice ONI. NOAA Climate Prediction Center.</li>
-        <li><strong>Pronóstico (real):</strong> lluvia y temperatura de los próximos 16 días. Open-Meteo.</li>
-        <li><strong>Casos (simulados):</strong> generados a partir del clima real con mecanismos epidemiológicos (criaderos por lluvia, temperatura, altitud, agua almacenada, inmunidad tras brotes). Los datos por distrito del CDC-MINSA se publican en PDF; el siguiente paso es conectarlos.</li>
-        <li><strong>Distritos:</strong> {app.distritos.length} de Tumbes, Piura y Lambayeque. Población y acceso a agua aproximados (INEI).</li>
-      </ul>
+  <section class="card">
+    <h2 class="chart-title"><Fragment set:html={icon("database", 20)} /> De dónde salen los datos</h2>
+    <p class="small muted">Todo es abierto y se descarga solo, sin intervención manual. Licencia: {datos.licencia}. Fuente: {datos.cita}</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Dato</th><th>Origen</th><th>Datos hasta</th><th>Casos en nuestros 47 distritos</th></tr></thead>
+      <tbody>
+        {FUENTES.map((f) => {
+          const c = cov[f.k];
+          return (
+            <tr>
+              <td>{f.url ? <a href={f.url} target="_blank" rel="noopener">{f.n}</a> : f.n}</td>
+              <td>{f.real ? <span class="badge lvl-bajo">real</span> : <span class="badge lvl-medio">simulado</span>} <span class="small muted">{c?.fuente}</span></td>
+              <td>{c ? fecha(c.hasta) : "—"}{c?.anio_provisional_descartado ? <div class="small muted">{c.anio_provisional_descartado} se descarta: el CDC aún lo consolida</div> : null}</td>
+              <td>{c?.casos_total != null ? c.casos_total.toLocaleString("es-PE") : "—"}</td>
+            </tr>
+          );
+        })}
+        <tr><td>Clima (lluvia, temperatura, humedad)</td><td><span class="badge lvl-bajo">real</span> <span class="small muted">Open-Meteo (reanálisis ERA5 y pronóstico de 16 días)</span></td><td>{fecha(app.escenarios.actual.ventana_lluvia.hasta)}</td><td>—</td></tr>
+        <tr><td>El Niño (Niño 1+2 semanal, ONI)</td><td><span class="badge lvl-bajo">real</span> <span class="small muted">NOAA Climate Prediction Center</span></td><td>{fecha(app.escenarios.actual.semana)}</td><td>—</td></tr>
+      </tbody>
+    </table>
     </div>
-    <div class="card">
-      <h2 class="chart-title"><Fragment set:html={icon("info", 20)} /> Límites y uso responsable</h2>
-      <ul class="small">
-        <li>Es un sistema de <strong>apoyo a la decisión</strong>: no reemplaza la vigilancia epidemiológica ni los comunicados del MINSA/ENFEN.</li>
-        <li>Los casos son simulados: las métricas muestran que el método funciona, no la precisión con datos reales.</li>
-        <li>La IA solo redacta explicaciones con los números del modelo; no diagnostica ni receta.</li>
-        <li>No usa datos personales: todo se trabaja agregado por distrito y semana.</li>
-        <li>El monitoreo semanal mide la deriva de los datos y el error reciente; si hace falta, un retador compite contra el modelo actual y solo se promueve si mejora de forma clara.</li>
-        <li>El plan de brigadas usa supuestos editables (efectividad, capacidad y costos de ejemplo): es una guía de priorización, no una orden de operaciones.</li>
-      </ul>
-    </div>
+    <ul class="small">
+      <li><strong>Por qué se descarta el último año:</strong> en el archivo nacional, Piura 2025 trae 1 117 casos y el Gobierno Regional de Piura reporta 12 242 para el mismo año. El CDC consolida con retraso; cuando el archivo incluya un año nuevo, el anterior se usa solo.</li>
+      <li><strong>Piura 2025–2026 (Gobierno Regional):</strong> se muestra como contexto en los gráficos, pero no entra al entrenamiento: no puedo garantizar que empalme con la serie nacional.</li>
+      <li><strong>Población y acceso a agua</strong> de cada distrito son aproximados (orden de magnitud INEI). Los casos se cruzan por código oficial (UBIGEO), no por nombre.</li>
+    </ul>
+  </section>
+
+  <section class="card limits">
+    <h2 class="chart-title"><Fragment set:html={icon("info", 20)} /> Límites y uso responsable</h2>
+    <ul class="small">
+      <li>Es un sistema de <strong>apoyo a la decisión</strong>: no reemplaza la vigilancia epidemiológica ni los comunicados del MINSA y el ENFEN.</li>
+      <li><strong>Hoy no hay casos oficiales recientes</strong> (último: {fecha(datos.ultimo_caso_oficial)}). La predicción de hoy usa solo clima y no calcula bien cuántos casos habrá: sirve para priorizar la vigilancia.</li>
+      <li>Un caso notificado no es una infección: más casos pueden ser más contagio, más pruebas o más notificación.</li>
+      <li>El golpe de calor es el único dato simulado (no hay fuente abierta); el resto de enfermedades usa casos reales.</li>
+      <li>La IA solo redacta explicaciones con los números del modelo; no diagnostica ni receta. No se usan datos personales: todo es agregado por distrito y semana.</li>
+      <li>El monitoreo semanal mide la deriva de los datos y el error reciente; si hace falta, un retador compite contra el modelo actual y solo se promueve si mejora de forma clara.</li>
+      <li>El plan de brigadas usa supuestos editables (efectividad, capacidad y costos de ejemplo): es una guía de priorización, no una orden de operaciones.</li>
+    </ul>
   </section>
 
   <section class="card">
     <h2 class="chart-title"><Fragment set:html={icon("layers", 20)} /> Arquitectura</h2>
-    <pre class="arch">Python (ml/) ─ ingest (incremental) → simulate → train → monitor → retrain → export
-   │  APIs: Open-Meteo + NOAA     GradientBoosting + cuantiles + logística
-   │  campeón vs retador · índice de lluvias extremas · registro MLflow
+    <pre class="arch">Python (ml/) ─ ingest (clima, incremental) → ingest_cases (CDC-MINSA) → build_cases → train → monitor → retrain → export
+   │  dos modelos: con casos recientes · solo clima (el de hoy) · índice de lluvias extremas
+   │  evaluación progresiva por año · campeón vs retador · registro MLflow
    ▼
-app.json + modelos .onnx ──▶ Astro en Cloudflare (este sitio)
-                               ├─ simulador en el navegador (onnxruntime-web)
-                               ├─ plan de brigadas (optimizador en el navegador)
-                               └─ /api/explicar → Workers AI (Llama 3.3)
+app.json + series.json + modelos .onnx ──▶ Astro en Cloudflare (este sitio, instalable como app)
+                               ├─ simulador y plan de brigadas en el navegador
+                               ├─ /api/explicar → Workers AI (Llama 3.3)
+                               └─ /api/alertas → alertas push (Web Push)
 FastAPI (api/) + Docker ──▶ /predict · /predict/batch · /optimize · /monitoreo · /health</pre>
     <p class="small muted">Datos generados el {app.generado}.</p>
   </section>
 </Layout>
 
 <style>
-  .lead { max-width: 820px; }
-  .notice { margin-bottom: 16px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 20px 0; }
-  .tile { display: flex; flex-direction: column; gap: 2px; }
-  .tile strong { font-size: 1.8rem; }
-  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .lead { max-width: 860px; }
+  .notice { margin: 16px 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+  .tile { display: flex; flex-direction: column; gap: 2px; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+  .tile strong { font-size: 1.6rem; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 16px; }
   section.card { margin-bottom: 16px; }
-  .imp { list-style: none; padding: 0; margin: 0; }
-  .imp li { display: grid; grid-template-columns: minmax(0, 1.6fr) 1fr 40px; gap: 10px; align-items: center; padding: 7px 0; font-size: 0.9rem; border-top: 1px solid var(--border); }
-  .bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
-  .bar i { display: block; height: 100%; border-radius: 4px; }
+  .imp { list-style: none; padding: 0; margin: 6px 0 0; }
+  .imp li { display: grid; grid-template-columns: minmax(0, 1.6fr) 1fr 40px; gap: 10px; align-items: center; padding: 6px 0; font-size: 0.88rem; border-top: 1px solid var(--border); }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--border); }
+  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--border); vertical-align: top; }
   th { color: var(--text-2); font-weight: 600; }
+  tr.sub td, tr.sub th { background: var(--surface-2); font-size: 0.85rem; }
+  .arch { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 0.8rem; }
   .mon-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
   .mon-head .chart-title { margin-bottom: 4px; }
   .drift { list-style: none; padding: 0; margin: 8px 0; }
@@ -290,6 +378,6 @@ FastAPI (api/) + Docker ──▶ /predict · /predict/batch · /optimize · /mo
   .drift li > span:last-child { grid-column: 1 / -1; margin-top: -4px; }
   .verdict { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin: 12px 0; font-size: 0.92rem; }
   .verdict.ok { background: var(--good-soft); }
-  .arch { background: var(--surface-2); padding: 14px; border-radius: 10px; overflow-x: auto; font-size: 0.8rem; }
-  @media (max-width: 600px) { table { display: block; overflow-x: auto; } }
+  .limits ul, section.card > ul { padding-left: 18px; }
+  @media (max-width: 600px) { .two { grid-template-columns: 1fr; } }
 </style>

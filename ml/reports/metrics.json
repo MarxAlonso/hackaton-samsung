@@ -1,146 +1,418 @@
 {
   "dengue": {
     "modelo": {
-      "auc": 0.984,
-      "pr_auc": 0.858,
-      "brier": 0.0218,
-      "f1": 0.757,
-      "precision": 0.841,
-      "recall": 0.689
+      "auc": 0.931,
+      "pr_auc": 0.918,
+      "brier": 0.1062,
+      "f1": 0.816,
+      "precision": 0.877,
+      "recall": 0.764
     },
-    "linea_base_canal_endemico": {
-      "auc": 0.79,
-      "pr_auc": 0.544,
-      "brier": 0.0326,
-      "f1": 0.704,
-      "precision": 0.881,
-      "recall": 0.586
+    "linea_base": {
+      "auc": 0.857,
+      "pr_auc": 0.815,
+      "brier": 0.1268,
+      "f1": 0.834,
+      "precision": 0.946,
+      "recall": 0.746
     },
+    "linea_base_nombre": "canal endémico (criterio del MINSA)",
     "confiabilidad": [
       {
-        "predicho": 0.006,
-        "observado": 0.007,
-        "n": 10357
+        "predicho": 0.025,
+        "observado": 0.057,
+        "n": 2923
       },
       {
-        "predicho": 0.142,
-        "observado": 0.209,
-        "n": 249
+        "predicho": 0.144,
+        "observado": 0.224,
+        "n": 603
       },
       {
-        "predicho": 0.253,
-        "observado": 0.301,
-        "n": 133
+        "predicho": 0.25,
+        "observado": 0.39,
+        "n": 354
       },
       {
-        "predicho": 0.342,
-        "observado": 0.449,
-        "n": 89
+        "predicho": 0.349,
+        "observado": 0.406,
+        "n": 313
       },
       {
-        "predicho": 0.452,
-        "observado": 0.484,
-        "n": 64
+        "predicho": 0.448,
+        "observado": 0.545,
+        "n": 286
       },
       {
         "predicho": 0.552,
-        "observado": 0.54,
-        "n": 50
+        "observado": 0.582,
+        "n": 292
       },
       {
-        "predicho": 0.649,
-        "observado": 0.683,
-        "n": 60
+        "predicho": 0.65,
+        "observado": 0.755,
+        "n": 359
       },
       {
-        "predicho": 0.755,
-        "observado": 0.729,
-        "n": 70
+        "predicho": 0.753,
+        "observado": 0.87,
+        "n": 376
       },
       {
-        "predicho": 0.849,
-        "observado": 0.771,
-        "n": 96
+        "predicho": 0.854,
+        "observado": 0.906,
+        "n": 614
       },
       {
-        "predicho": 0.964,
-        "observado": 0.954,
-        "n": 347
+        "predicho": 0.954,
+        "observado": 0.988,
+        "n": 1024
       }
     ],
-    "tasa_brote_test": 0.066,
+    "tasa_brote_test": 0.428,
+    "filas_entrenamiento": 14758,
+    "filas_prueba": 7144,
     "subconjuntos": {
-      "temporada_con_casos": {
-        "auc": 0.932,
-        "tasa_brote": 0.43,
-        "n": 1413
+      "temporada_lluvias": {
+        "auc": 0.906,
+        "tasa_brote": 0.557,
+        "n": 3666
       },
       "anticipacion_brote_nuevo": {
-        "auc": 0.97,
-        "pr_auc": 0.62,
-        "tasa_brote": 0.017,
-        "n": 10614
+        "auc": 0.814,
+        "pr_auc": 0.378,
+        "tasa_brote": 0.109,
+        "n": 3620
       }
     },
     "casos": {
-      "mae_modelo_p50": 12.59,
-      "mae_linea_base_ultimas_4_semanas": 27.07,
-      "cobertura_p10_p90": 0.951
+      "mae_modelo_p50": 40.24,
+      "mae_linea_base_ultimas_4_semanas": 58.67,
+      "cobertura_p10_p90": 0.74
     },
     "importancia_variables": {
-      "inc_0": 0.7403,
-      "inc_0_3": 0.0457,
-      "rain_2_6": 0.0346,
-      "inc_52": 0.0325,
-      "rain_0_1": 0.0317,
-      "nino12": 0.0234,
-      "week_cos": 0.0172,
-      "canal_next": 0.0161,
-      "log_pop": 0.0155,
-      "water_access": 0.013,
-      "tmean_0_3": 0.0092,
-      "humidity_0_3": 0.0053,
-      "week_sin": 0.0051,
-      "rain_7_12": 0.0038,
-      "oni": 0.0032,
-      "tmax_0": 0.0018,
-      "altitude": 0.0015
-    }
+      "inc_0": 0.5099,
+      "inc_0_3": 0.1853,
+      "log_pop": 0.0913,
+      "canal_next": 0.0445,
+      "nino12": 0.0361,
+      "inc_52": 0.0319,
+      "oni": 0.0189,
+      "altitude": 0.0162,
+      "rain_0_1": 0.0126,
+      "rain_7_12": 0.0124,
+      "tmean_0_3": 0.0089,
+      "humidity_0_3": 0.0087,
+      "week_cos": 0.0083,
+      "rain_2_6": 0.0057,
+      "tmax_0": 0.004,
+      "water_access": 0.004,
+      "week_sin": 0.0011
+    },
+    "periodo_entrenamiento": "2015-12-28 a 2021-12-27",
+    "periodo_prueba": "2022-01-03 a 2024-11-25",
+    "evaluacion_progresiva": [
+      {
+        "anio": 2022,
+        "entrenamiento_hasta": "2021-12-27",
+        "filas_prueba": 2444,
+        "tasa_brote": 0.188,
+        "auc": 0.909,
+        "recall": 0.664,
+        "brier": 0.0836,
+        "brier_sin_informacion": 0.157,
+        "mae_casos_p50": 10.44,
+        "cobertura_p10_p90": 0.818
+      },
+      {
+        "anio": 2023,
+        "entrenamiento_hasta": "2022-12-26",
+        "filas_prueba": 2444,
+        "tasa_brote": 0.681,
+        "auc": 0.934,
+        "recall": 0.874,
+        "brier": 0.1006,
+        "brier_sin_informacion": 0.5201,
+        "mae_casos_p50": 71.64,
+        "cobertura_p10_p90": 0.712
+      },
+      {
+        "anio": 2024,
+        "entrenamiento_hasta": "2023-12-25",
+        "filas_prueba": 2256,
+        "tasa_brote": 0.414,
+        "auc": 0.939,
+        "recall": 0.76,
+        "brier": 0.0987,
+        "brier_sin_informacion": 0.2891,
+        "mae_casos_p50": 31.84,
+        "cobertura_p10_p90": 0.758
+      }
+    ]
+  },
+  "dengue_clima": {
+    "modelo": {
+      "auc": 0.715,
+      "pr_auc": 0.664,
+      "brier": 0.289,
+      "f1": 0.282,
+      "precision": 0.841,
+      "recall": 0.169
+    },
+    "linea_base": {
+      "auc": 0.653,
+      "pr_auc": 0.534,
+      "brier": 0.3206,
+      "f1": 0.069,
+      "precision": 0.563,
+      "recall": 0.037
+    },
+    "linea_base_nombre": "frecuencia histórica de la semana del año",
+    "confiabilidad": [
+      {
+        "predicho": 0.037,
+        "observado": 0.332,
+        "n": 4205
+      },
+      {
+        "predicho": 0.142,
+        "observado": 0.377,
+        "n": 1141
+      },
+      {
+        "predicho": 0.246,
+        "observado": 0.518,
+        "n": 537
+      },
+      {
+        "predicho": 0.345,
+        "observado": 0.624,
+        "n": 378
+      },
+      {
+        "predicho": 0.45,
+        "observado": 0.757,
+        "n": 267
+      },
+      {
+        "predicho": 0.544,
+        "observado": 0.785,
+        "n": 223
+      },
+      {
+        "predicho": 0.651,
+        "observado": 0.845,
+        "n": 161
+      },
+      {
+        "predicho": 0.744,
+        "observado": 0.853,
+        "n": 136
+      },
+      {
+        "predicho": 0.841,
+        "observado": 0.935,
+        "n": 77
+      }
+    ],
+    "tasa_brote_test": 0.428,
+    "filas_entrenamiento": 14758,
+    "filas_prueba": 7144,
+    "subconjuntos": {
+      "temporada_lluvias": {
+        "auc": 0.7,
+        "tasa_brote": 0.557,
+        "n": 3666
+      },
+      "anticipacion_brote_nuevo": {
+        "auc": 0.734,
+        "pr_auc": 0.291,
+        "tasa_brote": 0.109,
+        "n": 3620
+      }
+    },
+    "casos": {
+      "mae_modelo_p50": 80.09,
+      "mae_linea_base_ultimas_4_semanas": 58.67,
+      "cobertura_p10_p90": 0.501
+    },
+    "importancia_variables": {
+      "canal_next": 0.2628,
+      "oni": 0.1929,
+      "rain_7_12": 0.1411,
+      "nino12": 0.1082,
+      "log_pop": 0.0764,
+      "rain_2_6": 0.0578,
+      "altitude": 0.0386,
+      "tmean_0_3": 0.0325,
+      "humidity_0_3": 0.0284,
+      "water_access": 0.024,
+      "week_sin": 0.0143,
+      "rain_0_1": 0.0117,
+      "tmax_0": 0.0088,
+      "week_cos": 0.0025
+    },
+    "periodo_entrenamiento": "2015-12-28 a 2021-12-27",
+    "periodo_prueba": "2022-01-03 a 2024-11-25",
+    "evaluacion_progresiva": [
+      {
+        "anio": 2022,
+        "entrenamiento_hasta": "2021-12-27",
+        "filas_prueba": 2444,
+        "tasa_brote": 0.188,
+        "auc": 0.709,
+        "recall": 0.065,
+        "brier": 0.1505,
+        "brier_sin_informacion": 0.157,
+        "mae_casos_p50": 17.71,
+        "cobertura_p10_p90": 0.723
+      },
+      {
+        "anio": 2023,
+        "entrenamiento_hasta": "2022-12-26",
+        "filas_prueba": 2444,
+        "tasa_brote": 0.681,
+        "auc": 0.726,
+        "recall": 0.219,
+        "brier": 0.4007,
+        "brier_sin_informacion": 0.5201,
+        "mae_casos_p50": 152.07,
+        "cobertura_p10_p90": 0.329
+      },
+      {
+        "anio": 2024,
+        "entrenamiento_hasta": "2023-12-25",
+        "filas_prueba": 2256,
+        "tasa_brote": 0.414,
+        "auc": 0.714,
+        "recall": 0.013,
+        "brier": 0.3188,
+        "brier_sin_informacion": 0.2891,
+        "mae_casos_p50": 67.5,
+        "cobertura_p10_p90": 0.431
+      }
+    ]
   },
   "otras_enfermedades": {
     "leptospirosis": {
-      "auc": 0.775,
-      "pr_auc": 0.437,
-      "brier": 0.0991,
-      "f1": 0.233,
-      "precision": 0.672,
-      "recall": 0.141
+      "auc": 0.78,
+      "pr_auc": 0.507,
+      "brier": 0.1243,
+      "f1": 0.228,
+      "precision": 0.762,
+      "recall": 0.134,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.18
     },
     "eda": {
-      "auc": 0.78,
-      "pr_auc": 0.506,
-      "brier": 0.1441,
-      "f1": 0.389,
-      "precision": 0.608,
-      "recall": 0.286
+      "auc": 0.83,
+      "pr_auc": 0.677,
+      "brier": 0.1536,
+      "f1": 0.378,
+      "precision": 0.829,
+      "recall": 0.245,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.284
     },
     "golpe_calor": {
-      "auc": 0.739,
-      "pr_auc": 0.438,
-      "brier": 0.1254,
-      "f1": 0.146,
-      "precision": 0.644,
-      "recall": 0.082
+      "auc": 0.749,
+      "pr_auc": 0.471,
+      "brier": 0.1198,
+      "f1": 0.193,
+      "precision": 0.715,
+      "recall": 0.111,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.174
     },
     "ira": {
-      "auc": 0.837,
-      "pr_auc": 0.494,
-      "brier": 0.1215,
-      "f1": 0.466,
-      "precision": 0.511,
-      "recall": 0.428
+      "auc": 0.741,
+      "pr_auc": 0.446,
+      "brier": 0.1516,
+      "f1": 0.261,
+      "precision": 0.548,
+      "recall": 0.171,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.224
+    }
+  },
+  "otras_enfermedades_clima": {
+    "leptospirosis": {
+      "auc": 0.663,
+      "pr_auc": 0.325,
+      "brier": 0.1463,
+      "f1": 0.003,
+      "precision": 0.25,
+      "recall": 0.002,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.18
+    },
+    "eda": {
+      "auc": 0.742,
+      "pr_auc": 0.583,
+      "brier": 0.1841,
+      "f1": 0.154,
+      "precision": 0.859,
+      "recall": 0.084,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.284
+    },
+    "golpe_calor": {
+      "auc": 0.748,
+      "pr_auc": 0.475,
+      "brier": 0.1214,
+      "f1": 0.077,
+      "precision": 0.862,
+      "recall": 0.04,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.174
+    },
+    "ira": {
+      "auc": 0.658,
+      "pr_auc": 0.315,
+      "brier": 0.1659,
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "n_prueba": 7144,
+      "tasa_base_prueba": 0.224
     }
   },
   "periodo_entrenamiento": "2015-12-28 a 2021-12-27",
-  "periodo_prueba": "2022-01-03 a 2026-09-07"
+  "periodo_prueba": "2022-01-03 a 2024-11-25",
+  "datos": {
+    "dengue": {
+      "fuente": "CDC-MINSA · Vigilancia epidemiológica de dengue",
+      "hasta": "2024-12-23",
+      "anio_provisional_descartado": 2025,
+      "casos_total": 297681
+    },
+    "leptospirosis": {
+      "fuente": "CDC-MINSA · Vigilancia epidemiológica de las zoonosis (leptospirosis)",
+      "hasta": "2024-12-23",
+      "anio_provisional_descartado": 2025,
+      "casos_total": 5501
+    },
+    "eda": {
+      "fuente": "CDC-MINSA · Vigilancia epidemiológica de EDA",
+      "hasta": "2024-12-23",
+      "anio_provisional_descartado": 2025,
+      "casos_total": 2038405
+    },
+    "ira": {
+      "fuente": "CDC-MINSA · Vigilancia epidemiológica de IRA",
+      "hasta": "2024-12-23",
+      "anio_provisional_descartado": 2025,
+      "casos_total": 5841555
+    },
+    "dengue_gore_piura": {
+      "fuente": "Gobierno Regional de Piura · Casos de dengue en la región Piura",
+      "desde": "2025-01-01",
+      "hasta": "2026-06-22",
+      "casos_total": 17591
+    },
+    "golpe_calor": {
+      "fuente": "Simulado a partir de la temperatura máxima real (no hay fuente abierta)",
+      "hasta": "2026-10-05"
+    }
+  }
 }

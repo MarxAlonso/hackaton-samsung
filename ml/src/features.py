@@ -6,32 +6,46 @@ Objetivos: lo que ocurre en las semanas t+1 … t+4.
 Brote de dengue = alguna semana futura supera el canal endémico (percentil 75 histórico
 de la incidencia de esa semana del año en ese distrito, calculado solo con años de
 entrenamiento) y tiene al menos 5 casos. Es el criterio de "zona de epidemia" del MINSA.
+
+Los casos reales llegan con retraso: después de la última semana con datos son DESCONOCIDOS (NaN).
+Por eso hay dos familias de modelo:
+  - "casos": usa también los casos recientes (el predictor más fuerte, pero necesita datos al día).
+  - "clima": solo clima, El Niño y calendario. Es el que puede predecir HOY cuando no hay casos recientes.
+Una ventana con algún dato desconocido da NaN (nunca se rellena con ceros) y esa fila no se usa para entrenar.
 """
 import numpy as np
 import pandas as pd
 
 from config import DATA_PROCESSED, DISEASES, HORIZON_WEEKS, TRAIN_END, districts_frame
 
-# Variables del modelo de dengue, en el orden exacto que espera el ONNX
+# Variables del modelo de dengue con casos recientes, en el orden exacto que espera el ONNX
 DENGUE_FEATURES = [
     "rain_0_1", "rain_2_6", "rain_7_12", "tmean_0_3", "tmax_0", "humidity_0_3",
     "nino12", "oni", "inc_0", "inc_0_3", "inc_52", "canal_next",
     "altitude", "water_access", "log_pop", "week_sin", "week_cos",
 ]
+CASE_FEATURES = ["inc_0", "inc_0_3", "inc_52"]
+CLIMATE_FEATURES = [f for f in DENGUE_FEATURES if f not in CASE_FEATURES]
+FEATURES = {"casos": DENGUE_FEATURES, "clima": CLIMATE_FEATURES}
+
 # Variables que cambian en el simulador "¿y si llueve más?"
 RAIN_FEATURES = ["rain_0_1", "rain_2_6", "rain_7_12"]
 TEMP_FEATURES = ["tmean_0_3", "tmax_0"]
 
-# Variables de los modelos simples (regresión logística) de las otras enfermedades.
-# Sin índices de El Niño: hoy están fuera del rango de entrenamiento y la logística extrapolaría.
-SIMPLE_FEATURES = [
-    "rain_0_1", "rain_2_6", "tmax_0", "tmean_0_3", "tmean_change", "humidity_0_3",
-    "water_access", "own_inc_0_3", "week_sin", "week_cos",
-]
+# Modelos simples (regresión logística) de las otras enfermedades. Sin índices de El Niño: hoy están
+# fuera del rango de entrenamiento y la logística extrapolaría.
+SIMPLE_FEATURES = {
+    "casos": ["rain_0_1", "rain_2_6", "tmax_0", "tmean_0_3", "tmean_change", "humidity_0_3",
+              "water_access", "own_inc_0_3", "week_sin", "week_cos"],
+    "clima": ["rain_0_1", "rain_2_6", "tmax_0", "tmean_0_3", "tmean_change", "humidity_0_3",
+              "water_access", "week_sin", "week_cos"],
+}
 
 
-def _roll(g, col, window, shift=0, how="sum"):
-    return g[col].transform(lambda s: getattr(s.shift(shift).rolling(window, min_periods=1), how)())
+def _roll(g, col, window, shift=0, how="sum", strict=False):
+    """Ventana móvil por distrito. strict=True exige la ventana completa (para casos: un dato desconocido → NaN)."""
+    mp = window if strict else 1
+    return g[col].transform(lambda s: getattr(s.shift(shift).rolling(window, min_periods=mp), how)())
 
 
 def base_table():
@@ -76,31 +90,32 @@ def add_features(df, channel):
 
     per100k = 1e5 / df.population
     df["inc_0"] = df.dengue * per100k
-    df["inc_0_3"] = _roll(g, "dengue", 4) * per100k
-    df["inc_52"] = _roll(g, "dengue", 52) * per100k
+    df["inc_0_3"] = _roll(g, "dengue", 4, strict=True) * per100k
+    df["inc_52"] = _roll(g, "dengue", 52, strict=True) * per100k
 
     # Canal endémico de las próximas semanas (umbral de alerta) y objetivo de brote
     df = df.merge(channel, on=["district_id", "epiweek"], how="left")
     g = df.groupby("district_id")
     # El canal depende solo del calendario: se conoce para semanas futuras sin esperar datos
     canal_lookup = channel.set_index(["district_id", "epiweek"])["canal"]
-    future_canal = []
-    future_over = []
+    future_canal, future_over, future_known = [], [], []
     for k in range(1, HORIZON_WEEKS + 1):
         epiweek_k = (df["epiweek"] - 1 + k) % 52 + 1
         canal_k = pd.Series(canal_lookup.reindex(list(zip(df.district_id, epiweek_k))).values, index=df.index)
         cases_k = g["dengue"].shift(-k)
         future_canal.append(canal_k)
         future_over.append((cases_k * per100k > canal_k) & (cases_k >= 5))
+        future_known.append(cases_k.notna())
     df["canal_next"] = pd.concat(future_canal, axis=1).mean(axis=1)
-    df["dengue_outbreak"] = pd.concat(future_over, axis=1).any(axis=1).astype(int)
+    over = pd.concat(future_over, axis=1).any(axis=1)
+    known = pd.concat(future_known, axis=1).all(axis=1)
+    df["dengue_outbreak"] = over.astype(float).where(known)  # NaN si falta alguna de las 4 semanas
     df["canal_now"] = df["canal"]
 
-    # Casos futuros (t+1..t+4) de cada enfermedad
+    # Casos futuros (t+1..t+4) de cada enfermedad (NaN si falta alguna semana)
     for disease in DISEASES:
-        future = sum(g[disease].shift(-k) for k in range(1, HORIZON_WEEKS + 1))
-        df[f"{disease}_next"] = future
-        df[f"{disease}_inc_0_3"] = _roll(g, disease, 4) * per100k
+        df[f"{disease}_next"] = sum(g[disease].shift(-k) for k in range(1, HORIZON_WEEKS + 1))
+        df[f"{disease}_inc_0_3"] = _roll(g, disease, 4, strict=True) * per100k
     return df
 
 
@@ -111,7 +126,9 @@ def build():
     return feats, channel
 
 
-def complete_rows(df):
-    """Filas con historia suficiente y futuro observado (para entrenar/evaluar)."""
+def complete_rows(df, features=None):
+    """Filas con historia suficiente, variables completas y resultado conocido (para entrenar/evaluar)."""
+    features = DENGUE_FEATURES if features is None else features
     min_week = df.week.min() + pd.Timedelta(weeks=52)
-    return df[(df.week >= min_week) & df["dengue_next"].notna()].dropna(subset=DENGUE_FEATURES)
+    ok = df[(df.week >= min_week) & df["dengue_next"].notna() & df["dengue_outbreak"].notna()]
+    return ok.dropna(subset=features)

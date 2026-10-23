@@ -1,11 +1,13 @@
 """Paso 5 — Monitoreo del modelo en producción (deriva y desempeño).
 
-Responde dos preguntas cada semana:
+Responde dos preguntas cada semana, para el modelo que predice HOY (familia "clima"):
   1. ¿Los datos de entrada de hoy se parecen a los de entrenamiento? (data drift)
      PSI por variable, comparando la misma época del año (para no confundir estación con deriva)
-     y % de valores fuera del rango visto al entrenar.
+     y % de valores fuera del rango visto al entrenar. Solo se vigilan clima y El Niño: son los únicos
+     datos que llegan al día (los casos oficiales llegan con meses de retraso).
   2. ¿El modelo sigue acertando? (model drift)
-     AUC, Brier y calibración por trimestre sobre semanas cuyo resultado ya se conoce.
+     AUC, Brier y calibración por trimestre sobre semanas cuyo resultado ya se conoce
+     (hoy el último trimestre con casos oficiales conocidos es el de fines de 2024).
 
 Reglas de decisión (umbrales estándar de la industria):
   PSI < 0,10 estable · 0,10–0,25 vigilar · > 0,25 deriva fuerte.
@@ -20,10 +22,13 @@ import pandas as pd
 from sklearn.metrics import brier_score_loss, roc_auc_score
 
 from config import DATA_PROCESSED, MODELS, REPORTS, TRAIN_END
-from features import DENGUE_FEATURES, complete_rows
+from features import CLIMATE_FEATURES, FEATURES, complete_rows
+from train import FAMILY_FILE
 
+PRIMARY = "clima"
 RECENT_WEEKS = 26
 EPS = 1e-4
+STATIC = {"week_sin", "week_cos", "altitude", "log_pop", "water_access", "canal_next"}  # no pueden derivar
 FRIENDLY = {
     "rain_0_1": "Lluvia últimas 2 semanas", "rain_2_6": "Lluvia hace 2–6 semanas", "rain_7_12": "Lluvia hace 7–12 semanas",
     "tmean_0_3": "Temperatura media", "tmax_0": "Temperatura máxima", "humidity_0_3": "Humedad",
@@ -37,7 +42,7 @@ def psi(train, recent, bins=10):
     """Population Stability Index con cortes por deciles del entrenamiento y colas abiertas."""
     train, recent = np.asarray(train, float), np.asarray(recent, float)
     edges = np.unique(np.quantile(train, np.linspace(0, 1, bins + 1)[1:-1]))
-    if len(edges) < 2:  # variable casi constante (p. ej. altitud): usa corte por igualdad
+    if len(edges) < 2:  # variable casi constante: usa corte por mediana
         edges = np.unique(np.concatenate([edges, [np.median(train) + 1e-9]]))
     cut = np.concatenate([[-np.inf], edges, [np.inf]])
     p = np.histogram(train, cut)[0] / len(train)
@@ -51,16 +56,16 @@ def status_of(value, warn=0.10, alert=0.25):
 
 
 def feature_drift(feats):
-    last = feats.week.max()
-    recent = feats[feats.week > last - pd.Timedelta(weeks=RECENT_WEEKS)].dropna(subset=DENGUE_FEATURES)
-    train_all = feats[feats.week <= TRAIN_END].dropna(subset=DENGUE_FEATURES)
+    cols = [f for f in CLIMATE_FEATURES if f not in STATIC]
+    clim = feats.dropna(subset=cols)
+    last = clim.week.max()
+    recent = clim[clim.week > last - pd.Timedelta(weeks=RECENT_WEEKS)]
+    train_all = clim[clim.week <= TRAIN_END]
     # misma época del año que la ventana reciente
     wk = set(recent.week.dt.isocalendar().week.astype(int))
     train = train_all[train_all.week.dt.isocalendar().week.astype(int).isin(wk)]
     rows = []
-    for f in DENGUE_FEATURES:
-        if f in ("week_sin", "week_cos", "altitude", "log_pop", "water_access"):
-            continue  # estáticas o de calendario: no pueden derivar
+    for f in cols:
         v = psi(train[f], recent[f])
         lo, hi = train_all[f].min(), train_all[f].max()
         out = float(((recent[f] > hi) | (recent[f] < lo)).mean())
@@ -71,36 +76,38 @@ def feature_drift(feats):
     return rows, {"desde": str(recent.week.min().date()), "hasta": str(recent.week.max().date()), "filas": int(len(recent))}
 
 
-def performance_by_quarter(feats):
-    bundle = joblib.load(MODELS / "dengue.joblib")
-    data = complete_rows(feats)
+def performance_by_quarter(feats, family):
+    bundle = joblib.load(MODELS / FAMILY_FILE[family])
+    data = complete_rows(feats, FEATURES[family])
     data = data[data.week > TRAIN_END].copy()
-    data["p"] = bundle["clf"].predict_proba(data[DENGUE_FEATURES].values)[:, 1]
+    data["p"] = bundle["clf"].predict_proba(data[FEATURES[family]].values)[:, 1]
     data["q"] = data.week.dt.to_period("Q").astype(str)
     rows = []
     for q, g in data.groupby("q"):
-        y = g.dengue_outbreak.values
+        y = g.dengue_outbreak.values.astype(int)
         row = {"periodo": q, "n": int(len(g)), "tasa_brote": round(float(y.mean()), 3),
                "brier": round(float(brier_score_loss(y, g.p)), 4),
                "prob_media": round(float(g.p.mean()), 3)}
         row["auc"] = round(float(roc_auc_score(y, g.p)), 3) if 0 < y.sum() < len(y) else None
         rows.append(row)
-    return rows, data
+    return rows
 
 
 def main():
     REPORTS.mkdir(exist_ok=True)
     feats = pd.read_parquet(DATA_PROCESSED / "features.parquet")
     drift, window = feature_drift(feats)
-    quarters, data = performance_by_quarter(feats)
+    quarters = performance_by_quarter(feats, PRIMARY)
+    quarters_casos = performance_by_quarter(feats, "casos")
     metrics = json.loads((REPORTS / "metrics.json").read_text(encoding="utf-8"))
-    brier_ref = metrics["dengue"]["modelo"]["brier"]
+    ref = metrics["dengue_clima"]
+    brier_ref = ref["modelo"]["brier"]
 
     recent_q = [q for q in quarters if q["n"] >= 200][-2:]
     recent_brier = float(np.mean([q["brier"] for q in recent_q])) if recent_q else brier_ref
     gap = max((abs(q["prob_media"] - q["tasa_brote"]) for q in recent_q), default=0.0)
 
-    importance = list(metrics["dengue"]["importancia_variables"])[:6]
+    importance = list(ref["importancia_variables"])[:6]
     key_alerts = [d for d in drift if d["estado"] == "alerta" and d["variable"] in importance]
     ood = [d for d in drift if d["fuera_de_rango_pct"] >= 20]
     reasons = []
@@ -111,13 +118,16 @@ def main():
     if recent_brier > 1.5 * brier_ref:
         reasons.append(f"el error de probabilidad reciente (Brier {recent_brier:.3f}) supera 1,5× el de validación ({brier_ref:.3f})")
     if gap > 0.10:
-        reasons.append("las probabilidades están descalibradas en el último trimestre")
+        reasons.append("las probabilidades están descalibradas en el último trimestre con casos conocidos")
 
     report = {
         "generado": pd.Timestamp.now(tz="America/Lima").strftime("%Y-%m-%d %H:%M"),
+        "modelo_vigilado": "solo clima (el que predice hoy)",
         "ventana_reciente": window,
         "deriva_variables": drift,
         "desempeno_por_trimestre": quarters,
+        "desempeno_por_trimestre_con_casos": quarters_casos,
+        "ultimo_trimestre_con_casos": quarters[-1]["periodo"] if quarters else None,
         "brier_validacion": brier_ref,
         "brier_reciente": round(recent_brier, 4),
         "estado": "reentrenar" if (key_alerts or recent_brier > 1.5 * brier_ref or gap > 0.10) else ("vigilar" if ood else "estable"),
@@ -129,7 +139,7 @@ def main():
     print(f"Monitoreo — ventana {window['desde']} → {window['hasta']} ({window['filas']} filas)")
     for d in drift[:6]:
         print(f"  {d['nombre']:28s} PSI {d['psi']:6.3f}  {d['estado']:8s} fuera de rango {d['fuera_de_rango_pct']:5.1f}%")
-    print("Brier por trimestre:", [(q["periodo"], q["brier"]) for q in quarters][-6:])
+    print("Brier por trimestre (modelo de hoy):", [(q["periodo"], q["brier"]) for q in quarters][-6:])
     print(f"Estado: {report['estado'].upper()}")
     for r in reasons:
         print("  -", r)

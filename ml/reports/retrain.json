@@ -1,36 +1,112 @@
 {
-  "generado": "2026-10-23 08:50",
+  "generado": "2026-10-23 11:11",
+  "familia": "clima",
+  "nombre_familia": "solo clima",
   "ventana_comparacion": {
-    "desde": "2026-03-16",
-    "hasta": "2026-09-07",
-    "semanas": 26
+    "desde": "2023-12-04",
+    "hasta": "2024-11-25",
+    "semanas": 52
   },
   "campeon": {
     "nombre": "evaluación (2015–2021)",
-    "brier": 0.0493,
-    "auc": 0.977,
-    "mae_casos_p50": 11.99,
-    "cobertura_p10_p90": 0.948,
-    "prob_media": 0.088,
-    "tasa_brote": 0.128,
-    "n": 1222
+    "brier": 0.3204,
+    "auc": 0.673,
+    "mae_casos_p50": 63.7,
+    "cobertura_p10_p90": 0.43,
+    "prob_media": 0.112,
+    "tasa_brote": 0.42,
+    "n": 2444
   },
   "retador": {
-    "nombre": "entrenado hasta 2026-03-09",
-    "brier": 0.0335,
-    "auc": 0.985,
-    "mae_casos_p50": 10.35,
-    "cobertura_p10_p90": 0.942,
-    "prob_media": 0.112,
-    "tasa_brote": 0.128,
-    "n": 1222
+    "nombre": "entrenado hasta 2023-11-27",
+    "brier": 0.3147,
+    "auc": 0.695,
+    "mae_casos_p50": 63.93,
+    "cobertura_p10_p90": 0.444,
+    "prob_media": 0.117,
+    "tasa_brote": 0.42,
+    "n": 2444
   },
-  "decision": "promovido",
-  "mejora_brier_pct": 32.0,
-  "motivo": "El retador mejora el Brier 32% en las últimas 26 semanas (mínimo exigido 5%).",
+  "decision": "se mantiene el campeón",
+  "mejora_brier_pct": 1.8,
+  "motivo": "El retador no supera al campeón por el margen exigido (mejora de Brier 2%, mínimo 5%).",
   "modelo_en_produccion": {
-    "origen": "retador promovido",
-    "entrenado_hasta": "2026-09-07"
+    "origen": "campeón",
+    "entrenado_hasta": "2021-12-27"
   },
-  "regla": "Se promueve si el Brier mejora ≥ 5% y el AUC no cae más de 0.01."
+  "regla": "Se promueve si el Brier mejora ≥ 5% y el AUC no cae más de 0.01.",
+  "familias": {
+    "clima": {
+      "familia": "clima",
+      "nombre_familia": "solo clima",
+      "ventana_comparacion": {
+        "desde": "2023-12-04",
+        "hasta": "2024-11-25",
+        "semanas": 52
+      },
+      "campeon": {
+        "nombre": "evaluación (2015–2021)",
+        "brier": 0.3204,
+        "auc": 0.673,
+        "mae_casos_p50": 63.7,
+        "cobertura_p10_p90": 0.43,
+        "prob_media": 0.112,
+        "tasa_brote": 0.42,
+        "n": 2444
+      },
+      "retador": {
+        "nombre": "entrenado hasta 2023-11-27",
+        "brier": 0.3147,
+        "auc": 0.695,
+        "mae_casos_p50": 63.93,
+        "cobertura_p10_p90": 0.444,
+        "prob_media": 0.117,
+        "tasa_brote": 0.42,
+        "n": 2444
+      },
+      "decision": "se mantiene el campeón",
+      "mejora_brier_pct": 1.8,
+      "motivo": "El retador no supera al campeón por el margen exigido (mejora de Brier 2%, mínimo 5%).",
+      "modelo_en_produccion": {
+        "origen": "campeón",
+        "entrenado_hasta": "2021-12-27"
+      }
+    },
+    "casos": {
+      "familia": "casos",
+      "nombre_familia": "con casos recientes",
+      "ventana_comparacion": {
+        "desde": "2023-12-04",
+        "hasta": "2024-11-25",
+        "semanas": 52
+      },
+      "campeon": {
+        "nombre": "evaluación (2015–2021)",
+        "brier": 0.1243,
+        "auc": 0.919,
+        "mae_casos_p50": 34.9,
+        "cobertura_p10_p90": 0.707,
+        "prob_media": 0.329,
+        "tasa_brote": 0.42,
+        "n": 2444
+      },
+      "retador": {
+        "nombre": "entrenado hasta 2023-11-27",
+        "brier": 0.1024,
+        "auc": 0.937,
+        "mae_casos_p50": 32.55,
+        "cobertura_p10_p90": 0.768,
+        "prob_media": 0.36,
+        "tasa_brote": 0.42,
+        "n": 2444
+      },
+      "decision": "promovido",
+      "mejora_brier_pct": 17.6,
+      "motivo": "El retador mejora el Brier 18% en las últimas 52 semanas con casos conocidos (un año completo) (mínimo exigido 5%).",
+      "modelo_en_produccion": {
+        "origen": "retador promovido",
+        "entrenado_hasta": "2024-11-25"
+      }
+    }
+  }
 }

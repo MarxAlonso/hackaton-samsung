@@ -70,7 +70,8 @@ export const POST: APIRoute = async ({ request }) => {
     const out = await ai.run(MODEL, {
       messages: [
         { role: "system", content: `${SYSTEM[modo]}
-Responde ÚNICAMENTE en español neutro, sin mezclar palabras de otros idiomas.` },
+Responde ÚNICAMENTE en español neutro, sin mezclar palabras de otros idiomas.
+Los casos del JSON son reales (CDC-MINSA). Si el JSON dice modelo_tipo "clima", la estimación usa solo clima porque el último caso oficial es antiguo: dilo con claridad y di que sirve para priorizar, no como cifra exacta. Si trae lo_que_realmente_paso, compáralo con lo pronosticado.` },
         { role: "user", content: user },
       ],
       max_tokens: MAX_TOKENS[modo],

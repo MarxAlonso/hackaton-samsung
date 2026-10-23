@@ -1,5 +1,6 @@
-// Gráfico de historia del dengue en SVG puro: casos semanales vs umbral de brote (canal
+// Gráfico de historia del dengue en SVG puro: casos semanales REALES vs umbral de brote (canal
 // endémico), semanas en brote marcadas, picos anotados y la banda del pronóstico.
+// Un caso desconocido (NaN) nunca se dibuja como cero: la línea se corta y se marca "sin dato".
 // La lluvia va en un gráfico aparte con su propio eje (nunca doble eje).
 import type { Risk, SeriesData } from "./data";
 import { fmt, weekLabel } from "./data";
@@ -9,6 +10,9 @@ const H = 340;
 const M = { top: 34, right: 16, bottom: 28, left: 52 };
 const RAIN_H = 90;
 
+export const finite = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
+export const finiteList = (a: (number | null | undefined)[]) => a.filter(finite) as number[];
+
 export function niceMax(v: number) {
   if (v <= 5) return 5;
   const p = Math.pow(10, Math.floor(Math.log10(v)));
@@ -16,8 +20,15 @@ export function niceMax(v: number) {
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
 }
 
+/** Línea que se corta donde el dato no existe. */
 export function linePath(xs: number[], ys: number[]) {
-  return xs.map((x, i) => `${i ? "L" : "M"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join("");
+  let d = "", pen = false;
+  xs.forEach((x, i) => {
+    if (!Number.isFinite(ys[i])) { pen = false; return; }
+    d += `${pen ? "L" : "M"}${x.toFixed(1)},${ys[i].toFixed(1)}`;
+    pen = true;
+  });
+  return d;
 }
 
 /** Picos: máximos locales sobre el umbral, separados al menos `gap` semanas. */
@@ -45,13 +56,21 @@ export interface HistoryOpts {
 
 export interface HistorySummary {
   ventana: { desde: string; hasta: string; semanas: number };
+  ultimo_dato_oficial: string | null;
+  ultimo_dato_regional_piura: string | null;
   picos: { semana: string; casos: number; veces_umbral: number }[];
   semanas_en_brote: number;
-  ultimas_8_semanas: { semana: string; casos: number; umbral: number; lluvia_mm: number }[];
+  ultimas_8_semanas: { semana: string; casos: number | null; umbral: number; lluvia_mm: number }[];
   pronostico_4_semanas: { p10: number; p50: number; p90: number; por_semana_p50: number };
-  tendencia: "subiendo" | "bajando" | "estable";
+  tendencia: "subiendo" | "bajando" | "estable" | "sin datos";
   lo_que_paso?: { casos_reales_4_semanas: number; dentro_del_rango: boolean };
 }
+
+const lastKnown = (a: number[] | null) => {
+  if (!a) return -1;
+  for (let i = a.length - 1; i >= 0; i--) if (finite(a[i])) return i;
+  return -1;
+};
 
 export function renderHistory(el: HTMLElement, series: SeriesData, districtId: string, o: HistoryOpts): HistorySummary {
   const s = series.distritos[districtId];
@@ -61,13 +80,17 @@ export function renderHistory(el: HTMLElement, series: SeriesData, districtId: s
   const endObs = o.showActual ? Math.min(all.length - 1, baseIdx + o.horizon) : baseIdx;
   const weeks = all.slice(start, endObs + 1);
   const cases = s.dengue.slice(start, endObs + 1);
+  const gore = s.gore ? s.gore.slice(start, endObs + 1) : null;
   const canal = s.canal.slice(start, endObs + 1);
   const rain = s.lluvia.slice(start, endObs + 1);
   const nCols = Math.max(weeks.length, baseIdx - start + 1 + o.horizon);
   const bi = baseIdx - start;
+  const known = (i: number) => finite(cases[i]) || (gore != null && finite(gore[i]));
+  const anyKnown = weeks.some((_, i) => known(i));
+  const lastOfficial = lastKnown(s.dengue), lastRegional = lastKnown(s.gore);
 
   const per = { lo: (o.risk.casos_p10 ?? 0) / o.horizon, mid: (o.risk.casos_p50 ?? 0) / o.horizon, hi: (o.risk.casos_p90 ?? 0) / o.horizon };
-  const yMax = niceMax(Math.max(...cases, ...canal, per.hi, 5) * 1.12);
+  const yMax = niceMax(Math.max(...finiteList(cases), ...(gore ? finiteList(gore) : []), ...canal, per.hi, 5) * 1.12);
   const iw = W - M.left - M.right;
   const ih = H - M.top - M.bottom;
   const x = (i: number) => M.left + (i / (nCols - 1)) * iw;
@@ -90,12 +113,19 @@ export function renderHistory(el: HTMLElement, series: SeriesData, districtId: s
   const every = Math.ceil(monthTicks.length / 14);
 
   const peaks = findPeaks(cases, canal);
-  const aboveIdx = cases.map((v, i) => (v > canal[i] && v >= 5 ? i : -1)).filter((i) => i >= 0);
+  const aboveIdx = cases.map((v, i) => (finite(v) && v > canal[i] && v >= 5 ? i : -1)).filter((i) => i >= 0);
   const f0 = x(bi);
   const f1 = x(bi + o.horizon);
 
+  // tramo observado sin ningún dato de casos (después del último dato oficial o regional)
+  let gapFrom = -1;
+  for (let i = bi; i >= 0; i--) { if (known(i)) { gapFrom = i + 1; break; } if (i === 0) gapFrom = 0; }
+  const gapEnd = bi; // hasta la semana base
+  const gap = gapFrom >= 0 && gapFrom <= gapEnd ? { a: x(Math.max(gapFrom, 0)) - (gapFrom > 0 ? 3 : 0), b: x(gapEnd) } : null;
+
   const rainMax = niceMax(Math.max(...rain, 10));
   const bw = Math.max(2, iw / nCols - 1.5);
+  const lastDate = lastOfficial >= 0 ? all[lastOfficial] : null;
 
   el.innerHTML = `
   <div class="chart-wrap">
@@ -105,6 +135,11 @@ export function renderHistory(el: HTMLElement, series: SeriesData, districtId: s
       <text x="${M.left}" y="${M.top - 14}" font-size="11" fill="var(--text-3)">casos</text>
       ${monthTicks.filter((_, k) => k % every === 0).map((t) => `<line x1="${x(t.i)}" x2="${x(t.i)}" y1="${M.top + ih}" y2="${M.top + ih + 4}" stroke="var(--text-3)"/>
         <text x="${x(t.i)}" y="${H - 8}" font-size="11" text-anchor="middle" fill="var(--text-3)">${t.label}</text>`).join("")}
+
+      ${gap && gap.b - gap.a > 4 ? `<!-- sin datos de casos -->
+      <rect x="${gap.a}" y="${M.top}" width="${gap.b - gap.a}" height="${ih}" fill="var(--surface-2)" opacity="0.75"/>
+      <text x="${(gap.a + gap.b) / 2}" y="${M.top + ih / 2 - 4}" font-size="12.5" font-weight="700" text-anchor="middle" fill="var(--text-2)">${anyKnown ? "sin datos de casos" : "Sin casos oficiales en este período"}</text>
+      <text x="${(gap.a + gap.b) / 2}" y="${M.top + ih / 2 + 14}" font-size="11" text-anchor="middle" fill="var(--text-3)">${lastDate ? `último dato oficial: ${weekLabel(lastDate)}` : "sin datos oficiales"}</text>` : ""}
 
       <!-- pronóstico -->
       <rect x="${f0}" y="${M.top}" width="${f1 - f0}" height="${ih}" fill="var(--surface-2)" opacity="0.6"/>
@@ -117,7 +152,8 @@ export function renderHistory(el: HTMLElement, series: SeriesData, districtId: s
 
       <!-- umbral y casos -->
       <path d="${linePath(xs, canal.map(y))}" fill="none" stroke="var(--threshold)" stroke-width="1.6" stroke-dasharray="4 4"/>
-      <path d="${linePath(xs, cases.map(y))}" fill="none" stroke="var(--series-1)" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="${linePath(xs, cases.map((v) => (finite(v) ? y(v) : NaN)))}" fill="none" stroke="var(--series-1)" stroke-width="2.2" stroke-linejoin="round"/>
+      ${gore ? `<path d="${linePath(xs, gore.map((v) => (finite(v) ? y(v) : NaN)))}" fill="none" stroke="var(--series-3)" stroke-width="2.2" stroke-linejoin="round"/>` : ""}
       ${aboveIdx.map((i) => `<circle cx="${xs[i]}" cy="${y(cases[i])}" r="3" fill="var(--critical)" stroke="var(--surface)" stroke-width="1.5"/>`).join("")}
 
       <!-- picos -->
@@ -138,7 +174,8 @@ export function renderHistory(el: HTMLElement, series: SeriesData, districtId: s
     <div class="chart-tooltip" hidden></div>
   </div>
   <div class="legend">
-    <span><i style="background:var(--series-1)"></i>Casos semanales</span>
+    <span><i style="background:var(--series-1)"></i>Casos semanales (CDC-MINSA)</span>
+    ${gore ? `<span><i style="background:var(--series-3)"></i>Casos 2025–2026 (Gobierno Regional de Piura)</span>` : ""}
     <span><i class="dash"></i>Umbral de brote (canal endémico)</span>
     <span><i style="background:var(--critical);width:10px;height:10px;border-radius:50%"></i>Semana en brote</span>
     <span><i class="box" style="background:var(--series-band)"></i>Rango pronosticado P10–P90</span>
@@ -156,26 +193,35 @@ export function renderHistory(el: HTMLElement, series: SeriesData, districtId: s
   </svg>`;
 
   attachCrosshair(el, (i) => {
-    const status = cases[i] > canal[i] && cases[i] >= 5 ? `<span style="color:var(--critical-ink);font-weight:700">En brote</span>` : `Bajo el umbral`;
-    return `<strong>Semana del ${weekLabel(weeks[i])}</strong><br>${fmt(cases[i])} casos · umbral ${fmt(canal[i])}<br>Lluvia ${fmt(rain[i])} mm · ${status}`;
-  }, xs, cases.map(y), W, M.left, iw, nCols);
+    const c = cases[i], g = gore ? gore[i] : NaN;
+    const line = finite(c)
+      ? `${fmt(c)} casos · umbral ${fmt(canal[i])} · ${c > canal[i] && c >= 5 ? `<span style="color:var(--critical-ink);font-weight:700">En brote</span>` : "bajo el umbral"}`
+      : finite(g) ? `${fmt(g)} casos (Gobierno Regional) · umbral ${fmt(canal[i])}` : "<span style=\"color:var(--text-3)\">Sin dato oficial de casos</span>";
+    return `<strong>Semana del ${weekLabel(weeks[i])}</strong><br>${line}<br>Lluvia ${fmt(rain[i])} mm`;
+  }, xs, cases.map((v, i) => (finite(v) ? y(v) : finite(gore ? gore[i] : NaN) ? y(gore![i]) : y(0))), W, M.left, iw, nCols);
 
-  // Resumen para la IA y el informe
-  const obsCases = cases.slice(0, bi + 1);
-  const last4 = obsCases.slice(-4).reduce((a, b) => a + b, 0);
-  const prev4 = obsCases.slice(-8, -4).reduce((a, b) => a + b, 0);
-  const tendencia = last4 > prev4 * 1.25 ? "subiendo" : last4 < prev4 * 0.75 ? "bajando" : "estable";
+  // Resumen para la IA y el informe (los datos desconocidos se dicen, no se cuentan como cero)
+  const obs = cases.slice(0, bi + 1);
+  const sum = (a: number[]) => finiteList(a).reduce((p, c) => p + c, 0);
+  const last4 = obs.slice(-4), prev4 = obs.slice(-8, -4);
+  const enough = finiteList(last4).length === 4 && finiteList(prev4).length === 4;
+  const tendencia: HistorySummary["tendencia"] = !enough ? "sin datos" : sum(last4) > sum(prev4) * 1.25 ? "subiendo" : sum(last4) < sum(prev4) * 0.75 ? "bajando" : "estable";
   const summary: HistorySummary = {
     ventana: { desde: weekLabel(weeks[0]), hasta: weekLabel(weeks[bi]), semanas: bi + 1 },
+    ultimo_dato_oficial: lastOfficial >= 0 ? weekLabel(all[lastOfficial]) : null,
+    ultimo_dato_regional_piura: lastRegional >= 0 ? weekLabel(all[lastRegional]) : null,
     picos: peaks.map((i) => ({ semana: weekLabel(weeks[i]), casos: cases[i], veces_umbral: Math.round(cases[i] / Math.max(canal[i], 1)) })),
     semanas_en_brote: aboveIdx.filter((i) => i <= bi).length,
-    ultimas_8_semanas: obsCases.slice(-8).map((c, k) => { const i = bi - Math.min(7, bi) + k; return { semana: weekLabel(weeks[i]), casos: c, umbral: Math.round(canal[i]), lluvia_mm: Math.round(rain[i]) }; }),
+    ultimas_8_semanas: obs.slice(-8).map((c, k) => { const i = bi - Math.min(7, bi) + k; return { semana: weekLabel(weeks[i]), casos: finite(c) ? c : null, umbral: Math.round(canal[i]), lluvia_mm: Math.round(rain[i]) }; }),
     pronostico_4_semanas: { p10: o.risk.casos_p10 ?? 0, p50: o.risk.casos_p50 ?? 0, p90: o.risk.casos_p90 ?? 0, por_semana_p50: Math.round(per.mid) },
     tendencia,
   };
   if (o.showActual && cases.length > bi + 1) {
-    const real = cases.slice(bi + 1, bi + 1 + o.horizon).reduce((a, b) => a + b, 0);
-    summary.lo_que_paso = { casos_reales_4_semanas: real, dentro_del_rango: real >= (o.risk.casos_p10 ?? 0) && real <= (o.risk.casos_p90 ?? 0) };
+    const after = cases.slice(bi + 1, bi + 1 + o.horizon);
+    if (finiteList(after).length === after.length) {
+      const real = sum(after);
+      summary.lo_que_paso = { casos_reales_4_semanas: real, dentro_del_rango: real >= (o.risk.casos_p10 ?? 0) && real <= (o.risk.casos_p90 ?? 0) };
+    }
   }
   return summary;
 }
@@ -194,8 +240,8 @@ export function attachCrosshair(el: HTMLElement, html: (i: number) => string, xs
     xhair.setAttribute("x2", String(xs[i]));
     xhair.setAttribute("visibility", "visible");
     dot.setAttribute("cx", String(xs[i]));
-    dot.setAttribute("cy", String(ys[i]));
-    dot.setAttribute("visibility", "visible");
+    dot.setAttribute("cy", String(Number.isFinite(ys[i]) ? ys[i] : 0));
+    dot.setAttribute("visibility", Number.isFinite(ys[i]) ? "visible" : "hidden");
     tip.hidden = false;
     tip.innerHTML = html(i);
     const lx = (xs[i] / width) * r.width;

@@ -58,7 +58,10 @@ def test_predict_incluye_lluvias_extremas_y_modelo():
     assert body["lluvias_extremas"]["nivel"] in {"alto", "medio", "bajo"}
     assert body["lluvias_extremas"]["umbral_alto_mm"] > body["lluvias_extremas"]["umbral_medio_mm"]
     assert body["modelo"]["id"] == "prod"
-    assert client.post("/predict", json={"district_id": "tum-tumbes", "escenario": "2023"}).json()["modelo"]["id"] == "eval"
+    # Hoy no hay casos oficiales recientes: se usa el modelo solo-clima y se avisa
+    assert body["modelo_tipo"] == "clima" and body["aviso"] and body["riesgos"]["dengue"]["confianza"] in {"media", "baja"}
+    replay = client.post("/predict", json={"district_id": "tum-tumbes", "escenario": "2023"}).json()
+    assert replay["modelo"]["id"] == "eval" and replay["modelo_tipo"] == "casos" and replay["aviso"] is None
 
 
 def test_monitoreo():

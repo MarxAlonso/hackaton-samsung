@@ -66,6 +66,7 @@ import { icon } from "../lib/icons";
         const info = app.contenido.enfermedades;
         const fc = app.pronostico[id];
         const m = app.metricas.dengue;
+        const mc = app.metricas.dengue_clima;
         const hoy = new Date().toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
         const lvl = (n: Nivel) => `<span class="badge lvl-${n}">${NIVEL_LABEL[n]}</span>`;
 
@@ -151,13 +152,13 @@ import { icon } from "../lib/icons";
           <section data-aud="autoridad" class="rep-params">
             <h2 class="inline-ico">${icon("cpu", 20)} Parámetros usados por el modelo</h2>
             <table class="rep-table compact">
-              <tbody>${app.modelo.dengue_features.filter((f) => FEATURE_NAMES[f]).map((f) => `<tr><td>${FEATURE_NAMES[f]}</td><td><strong>${formatFeature(f, p.features[f])}</strong></td></tr>`).join("")}</tbody>
+              <tbody>${app.modelo.features[p.modelo_tipo].filter((f) => FEATURE_NAMES[f] && p.features[f] !== undefined).map((f) => `<tr><td>${FEATURE_NAMES[f]}</td><td><strong>${formatFeature(f, p.features[f])}</strong></td></tr>`).join("")}</tbody>
             </table>
-            <p class="small muted">Modelo: Gradient Boosting (brote) + regresión por cuantiles (casos). Validación temporal ${app.metricas.periodo_prueba}: AUC ${m.modelo.auc}, recall ${Math.round(m.modelo.recall * 100)}%, cobertura del rango P10–P90 ${Math.round(m.casos.cobertura_p10_p90 * 100)}%. Línea base (canal endémico): AUC ${m.linea_base_canal_endemico.auc}.</p>
+            <p class="small muted">Modelo: Gradient Boosting (brote) + regresión por cuantiles (casos). ${p.modelo_tipo === "clima" ? `Esta estimación usa <strong>solo clima</strong> porque el último caso oficial es de ${p.ultimo_dato_casos}: sirve para priorizar la vigilancia, no como cifra exacta. Validación temporal ${app.metricas.periodo_prueba}: AUC ${mc.modelo.auc} (línea base ${mc.linea_base.auc}).` : `Validación temporal ${app.metricas.periodo_prueba}: AUC ${m.modelo.auc}, recall ${Math.round(m.modelo.recall * 100)}%, cobertura del rango P10–P90 ${Math.round(m.casos.cobertura_p10_p90 * 100)}%. Línea base (canal endémico): AUC ${m.linea_base.auc}.`}</p>
           </section>
 
           <footer class="rep-foot small muted">
-            <p><strong>Fuentes:</strong> clima diario por distrito de Open-Meteo (reanálisis ERA5); anomalía Niño 1+2 y ONI de NOAA CPC. <strong>Casos simulados</strong> a partir del clima real con mecanismos epidemiológicos; el sistema es de apoyo a la decisión y no reemplaza la vigilancia del MINSA ni los comunicados del ENFEN. Población y acceso a agua aproximados (INEI). Prototipo Hackathon ISIL 2026.</p>
+            <p><strong>Fuentes:</strong> clima diario por distrito de Open-Meteo (reanálisis ERA5); anomalía Niño 1+2 y ONI de NOAA CPC. Casos <strong>reales</strong> de CDC-MINSA (datos abiertos, ODC-By; golpe de calor simulado); el sistema es de apoyo a la decisión y no reemplaza la vigilancia del MINSA ni los comunicados del ENFEN. Población y acceso a agua aproximados (INEI). Prototipo Hackathon ISIL 2026.</p>
           </footer>`;
 
         hist = renderHistory(document.querySelector("#rep-chart")!, series, id, { baseWeek: s.semana, horizon: app.horizonte_semanas, risk: r, weeksBack: 52, showActual: scenarioKey !== "actual" });
