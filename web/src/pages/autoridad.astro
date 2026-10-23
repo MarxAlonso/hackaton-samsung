@@ -1,0 +1,517 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { icon } from "../lib/icons";
+---
+
+<Layout title="Panel de autoridad" active="autoridad" wide description="Priorización de distritos por riesgo de brote de dengue y enfermedades asociadas a El Niño.">
+  <section class="head">
+    <div>
+      <h1>Panel de priorización</h1>
+      <p class="muted">Distritos ordenados por probabilidad de brote de dengue en las próximas 4 semanas.</p>
+      <p id="model-note" class="small muted inline-ico" style="margin-top:4px"></p>
+    </div>
+    <div class="filters" role="group" aria-label="Filtros">
+      <label>Escenario
+        <select id="scenario">
+          <option value="actual">Hoy</option>
+          <option value="2023">Replay: verano 2023</option>
+          <option value="2017">Replay: verano 2017</option>
+        </select>
+      </label>
+      <label>Departamento
+        <select id="dept">
+          <option value="">Todos</option>
+          <option>Tumbes</option>
+          <option>Piura</option>
+          <option>Lambayeque</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <p id="replay" class="notice" hidden></p>
+
+  <section class="kpis" id="kpis" aria-live="polite"></section>
+
+  <section class="row2">
+    <div class="card map-card">
+      <div class="map-head">
+        <h2 class="chart-title"><Fragment set:html={icon("map", 20)} /> Mapa de riesgo</h2>
+        <div class="seg-toggle" role="radiogroup" aria-label="Capa del mapa">
+          <button type="button" role="radio" aria-checked="true" data-layer="dengue"><Fragment set:html={icon("mosquito", 16)} /> Dengue</button>
+          <button type="button" role="radio" aria-checked="false" data-layer="lluvia"><Fragment set:html={icon("rain", 16)} /> Lluvias extremas</button>
+        </div>
+      </div>
+      <div id="map" role="application" aria-label="Mapa de riesgo por distrito"></div>
+      <div class="legend map-legend" id="map-legend"></div>
+    </div>
+    <div class="card list-card">
+      <h2 class="chart-title"><Fragment set:html={icon("layers", 20)} /> Prioridad de intervención</h2>
+      <ol id="ranking" class="ranking"></ol>
+    </div>
+  </section>
+
+  <section class="card detail" id="detail" aria-live="polite">
+    <p class="muted">Selecciona un distrito en el mapa o en la lista.</p>
+  </section>
+
+  <section class="card analysis">
+    <div class="analysis-head">
+      <h2 class="chart-title"><Fragment set:html={icon("chart", 20)} /> Análisis de <span id="an-name">—</span></h2>
+      <div class="controls">
+        <button class="btn primary chart-ai" id="chart-ai" type="button"><Fragment set:html={icon("sparkles", 16)} /> Explicar este gráfico con IA</button>
+        <label>Ventana
+          <select id="window">
+            <option value="26">6 meses</option>
+            <option value="52" selected>1 año</option>
+            <option value="104">2 años</option>
+            <option value="208">4 años</option>
+          </select>
+        </label>
+        <label>Medida
+          <select id="metric">
+            <option value="inc">Por 100 mil hab.</option>
+            <option value="dengue">Casos</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="hist"><Fragment set:html={icon("activity", 16)} /> Historia y pronóstico</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="heat"><Fragment set:html={icon("grid", 16)} /> Mapa de calor</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="seasons"><Fragment set:html={icon("calendar", 16)} /> Comparar temporadas</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="compare"><Fragment set:html={icon("compare", 16)} /> Comparar distritos</button>
+    </div>
+    <div id="chart-ai-box" class="ai-box" hidden></div>
+    <div class="tabpanel" id="tab-hist" role="tabpanel">
+      <p class="chart-sub">Casos semanales frente al umbral de brote. Los picos están anotados; la zona sombreada es el pronóstico del modelo a 4 semanas.</p>
+      <div id="chart"></div>
+      <p id="fc-note" class="small muted" style="margin-top:8px"></p>
+    </div>
+    <div class="tabpanel" id="tab-heat" role="tabpanel" hidden>
+      <p class="chart-sub">Cada fila es un distrito y cada columna una semana. Más oscuro = más incidencia. Las últimas columnas (punteadas) son el pronóstico.</p>
+      <div id="heatmap"></div>
+    </div>
+    <div class="tabpanel" id="tab-seasons" role="tabpanel" hidden>
+      <p class="chart-sub">Las temporadas superpuestas por semana del año: 2017 (Niño costero), 2023 (ciclón Yaku + Niño) y la temporada en curso.</p>
+      <div id="seasons"></div>
+    </div>
+    <div class="tabpanel" id="tab-compare" role="tabpanel" hidden>
+      <p class="chart-sub">Compara el distrito seleccionado con otro, en incidencia por 100 mil para que la comparación sea justa.</p>
+      <label class="compare-pick">Comparar con <select id="compare-with"></select></label>
+      <div id="compare"></div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import L from "leaflet";
+  import "leaflet/dist/leaflet.css";
+  import { loadData, loadSeries, badge, fillTemplate, fmt, pct, weekLabel, type AppData, type SeriesData, type DistrictPrediction, type FloodInfoData, type Risk, type DiseaseKey, type Nivel } from "../lib/data";
+  import { icon } from "../lib/icons";
+  import { renderHistory } from "../lib/chart";
+  import { renderFlood } from "../lib/flood";
+  import { renderHeatmap } from "../lib/heatmap";
+  import { renderSeasons, renderDistrictCompare } from "../lib/compare";
+  import { simulate } from "../lib/simulator";
+  import { explain } from "../lib/explain";
+
+  type ScenarioKey = "actual" | "2023" | "2017";
+  const params = new URLSearchParams(location.search);
+  const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+  const scenarioSel = $<HTMLSelectElement>("#scenario");
+  const deptSel = $<HTMLSelectElement>("#dept");
+  const windowSel = $<HTMLSelectElement>("#window");
+  const metricSel = $<HTMLSelectElement>("#metric");
+  const compareSel = $<HTMLSelectElement>("#compare-with");
+  scenarioSel.value = (["actual", "2023", "2017"].includes(params.get("escenario") ?? "") ? params.get("escenario") : "actual")!;
+
+  const COLORS: Record<Nivel, string> = { alto: "#d03b3b", medio: "#fab219", bajo: "#0ca30c" };
+  let app: AppData;
+  let series: SeriesData;
+  let selected = params.get("d") ?? "";
+  let activeTab = "hist";
+  let currentRisk: Risk | null = null;
+  let chartSummary: unknown = null;
+  const TAB_NAMES: Record<string, string> = { hist: "Historia y pronóstico (casos semanales vs umbral de brote, picos y banda de pronóstico)", heat: "Mapa de calor distrito × semana", seasons: "Comparación de temporadas por semana del año", compare: "Comparación de dos distritos" };
+  let markers: Record<string, L.CircleMarker> = {};
+  let layer: "dengue" | "lluvia" = "dengue";
+  const FLOOD_LABEL: Record<Nivel, string> = { alto: "Lluvia extrema", medio: "Lluvia intensa", bajo: "Sin alerta de lluvia" };
+  const map = L.map("map", { scrollWheelZoom: false }).setView([-5.2, -80.2], 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: "&copy; OpenStreetMap" }).addTo(map);
+
+  const scenario = () => app.escenarios[scenarioSel.value as ScenarioKey];
+  const district = (id: string) => app.distritos.find((d) => d.district_id === id)!;
+
+  function visible(): DistrictPrediction[] {
+    return scenario().distritos
+      .filter((p) => !deptSel.value || district(p.district_id).department === deptSel.value)
+      .sort((a, b) => b.riesgos.dengue.prob - a.riesgos.dengue.prob);
+  }
+
+  function renderKpis(list: DistrictPrediction[]) {
+    const s = scenario();
+    const altos = list.filter((p) => p.riesgos.dengue.nivel === "alto").length;
+    const sum = (f: (p: DistrictPrediction) => number) => list.reduce((a, p) => a + f(p), 0);
+    const kpi = (ico: string, label: string, value: string, sub: string) =>
+      `<div class="card kpi"><span class="ico-box brand">${icon(ico, 22)}</span><div><span class="eyebrow">${label}</span><strong>${value}</strong><span class="small muted">${sub}</span></div></div>`;
+    $("#kpis").innerHTML =
+      kpi("calendar", "Semana base", weekLabel(s.semana), "pronóstico a 4 semanas") +
+      kpi("alertOctagon", "Distritos en riesgo alto", `${altos} de ${list.length}`, "probabilidad de brote ≥ 60%") +
+      kpi("mosquito", "Casos de dengue esperados", fmt(sum((p) => p.riesgos.dengue.casos_p50 ?? 0)), `rango ${fmt(sum((p) => p.riesgos.dengue.casos_p10 ?? 0))} – ${fmt(sum((p) => p.riesgos.dengue.casos_p90 ?? 0))}`) +
+      kpi("wave", "Mar (Niño 1+2)", `${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C`, `pruebas rápidas sugeridas: ${fmt(sum((p) => p.recursos.pruebas))}`) +
+      kpi("rain", "Distritos con lluvia extrema", `${list.filter((p) => p.inundacion.nivel !== "bajo").length} de ${list.length}`,
+        s.ventana_lluvia.con_pronostico ? `pronóstico a 16 días (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)` : `en los 14 días previos (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)`);
+  }
+
+  function renderMap(list: DistrictPrediction[]) {
+    Object.values(markers).forEach((m) => m.remove());
+    markers = {};
+    for (const p of list) {
+      const d = district(p.district_id);
+      const r = p.riesgos.dengue, f = p.inundacion;
+      const nivel = layer === "dengue" ? r.nivel : f.nivel;
+      const tip = layer === "dengue"
+        ? `<strong>${d.district}</strong><br>Dengue: ${pct(r.prob)} prob. de brote<br>${fmt(r.casos_p50 ?? 0)} casos esperados`
+        : `<strong>${d.district}</strong><br>${FLOOD_LABEL[f.nivel]}<br>Máx. 3 días: ${fmt(f.lluvia_max_3d_mm)} mm (umbral extremo ${fmt(f.umbral_alto_mm)})`;
+      markers[p.district_id] = L.circleMarker([d.lat, d.lon], {
+        radius: 6 + Math.sqrt(d.population) / 60, color: "#fff", weight: 2, fillColor: COLORS[nivel], fillOpacity: 0.9,
+      })
+        .bindTooltip(tip)
+        .on("click", () => select(p.district_id))
+        .addTo(map);
+    }
+    $("#map-legend").innerHTML = layer === "dengue"
+      ? `<span class="badge lvl-alto">Alto ≥ 60%</span><span class="badge lvl-medio">Medio 30–59%</span><span class="badge lvl-bajo">Bajo &lt; 30%</span><span class="muted">Probabilidad de brote · tamaño = población</span>`
+      : `<span class="badge lvl-alto">Extrema (≥ P99,9)</span><span class="badge lvl-medio">Intensa (≥ P99)</span><span class="badge lvl-bajo">Sin alerta</span><span class="muted">Lluvia de 3 días frente a la historia del distrito</span>`;
+  }
+
+  function floodText(f: FloodInfoData) {
+    const when = `${weekLabel(f.fecha_max, false)}${f.es_pronostico ? " (pronóstico)" : ""}`;
+    if (f.nivel === "bajo") {
+      return `El máximo acumulado en 3 días es ${fmt(f.lluvia_max_3d_mm)} mm (${when}), el ${Math.round((100 * f.lluvia_max_3d_mm) / f.umbral_alto_mm)}% del umbral extremo de este distrito (${fmt(f.umbral_alto_mm)} mm). No se espera lluvia extrema.`;
+    }
+    return `${f.es_pronostico ? "Se pronostican" : "Se registraron"} <strong>${fmt(f.lluvia_max_3d_mm)} mm en 3 días</strong> hacia el ${when}: ` +
+      `${f.nivel === "alto" ? "comparable a los eventos del Niño costero de 2017 y 2023 en este distrito" : "lluvia intensa, con encharcamientos probables"} ` +
+      `(umbral intenso ${fmt(f.umbral_medio_mm)} mm, extremo ${fmt(f.umbral_alto_mm)} mm). ${app.contenido.lluvia_extrema.info.despues}`;
+  }
+
+  function renderRanking(list: DistrictPrediction[]) {
+    $("#ranking").innerHTML = list.map((p) => {
+      const d = district(p.district_id);
+      const r = p.riesgos.dengue;
+      return `<li><button type="button" data-id="${p.district_id}" class="${p.district_id === selected ? "sel" : ""}">
+        <span class="name"><strong>${d.district}</strong><span class="small muted">${d.province}, ${d.department}</span></span>
+        <span class="bar" aria-hidden="true"><i style="width:${Math.round(r.prob * 100)}%;background:${COLORS[r.nivel]}"></i></span>
+        <span class="prob">${pct(r.prob)}</span>
+        ${badge(r.nivel, r.nivel === "alto" ? "Alto" : r.nivel === "medio" ? "Medio" : "Bajo")}
+      </button></li>`;
+    }).join("");
+    document.querySelectorAll<HTMLButtonElement>("#ranking button").forEach((b) => b.addEventListener("click", () => select(b.dataset.id!)));
+  }
+
+  function riskRows(riesgos: Record<DiseaseKey, Risk>) {
+    return (Object.keys(riesgos) as DiseaseKey[]).map((k) => {
+      const r = riesgos[k];
+      const e = app.contenido.enfermedades[k];
+      return `<div class="riskrow"><span class="inline-ico">${icon(e.icono, 18)} ${e.nombre}</span>
+        <span class="bar" aria-hidden="true"><i style="width:${Math.round(r.prob * 100)}%;background:${COLORS[r.nivel]}"></i></span>
+        <span class="prob">${pct(r.prob)}</span></div>`;
+    }).join("");
+  }
+
+  const actionsFor = (nivel: Nivel, recursos: { pruebas: number; camas: number }) =>
+    app.contenido.autoridad.dengue[nivel].map((a) => `<li>${fillTemplate(a, recursos)}</li>`).join("");
+
+  const headline = (name: string, r: Risk) =>
+    `<p class="headline-prob"><strong>${pct(r.prob)}</strong> de probabilidad de brote de dengue en ${name} en las próximas 4 semanas.</p>
+     <p>Casos esperados: <strong>${fmt(r.casos_p50 ?? 0)}</strong> <span class="muted">(entre ${fmt(r.casos_p10 ?? 0)} y ${fmt(r.casos_p90 ?? 0)})</span> · Confianza del modelo: <strong>${r.confianza}</strong></p>`;
+
+  function fallbackText(name: string, p: DistrictPrediction) {
+    const r = p.riesgos.dengue;
+    const others = p.top_riesgos.filter((k) => k !== "dengue").map((k) => app.contenido.enfermedades[k].nombre.toLowerCase());
+    return `• ${name} tiene ${pct(r.prob)} de probabilidad de brote de dengue (confianza ${r.confianza}).\n` +
+      `• Se esperan ~${fmt(r.casos_p50 ?? 0)} casos en 4 semanas (rango ${fmt(r.casos_p10 ?? 0)}–${fmt(r.casos_p90 ?? 0)}).\n` +
+      `• Factores: ${fmt(p.clima.lluvia_2_a_6sem)} mm de lluvia entre 2 y 6 semanas atrás (criaderos) y ${p.clima.tmedia} °C de temperatura media.\n` +
+      `• Prioridad: ${fillTemplate(app.contenido.autoridad.dengue[r.nivel][0], p.recursos).toLowerCase()}\n` +
+      (others.length ? `• Vigilar también: ${others.join(" y ")}.` : "");
+  }
+
+  function select(id: string) {
+    selected = id;
+    const s = scenario();
+    const p = s.distritos.find((x) => x.district_id === id)!;
+    const d = district(id);
+    const r = p.riesgos.dengue;
+    currentRisk = r;
+    const el = $("#detail");
+    el.innerHTML = `
+      <div class="detail-head">
+        <div>
+          <p class="eyebrow">${d.province}, ${d.department} · ${fmt(d.population)} hab. · ${d.altitude} m s. n. m. · agua por red ${Math.round(d.water_access * 100)}%</p>
+          <h2>${d.district} ${badge(r.nivel)}</h2>
+          <div id="headline">${headline(d.district, r)}</div>
+        </div>
+        <div class="climate-chips">
+          <span class="chip-c">${icon("rain", 16)} ${fmt(p.clima.lluvia_2_a_6sem)} mm <small>lluvia 2–6 sem. atrás</small></span>
+          <span class="chip-c">${icon("thermometer", 16)} ${p.clima.tmax} °C <small>máxima</small></span>
+          <span class="chip-c">${icon("wave", 16)} ${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C <small>Niño 1+2</small></span>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div>
+          <h3 class="inline-ico">${icon("shield", 18)} Acciones recomendadas</h3>
+          <ol class="actions" id="actions">${actionsFor(r.nivel, p.recursos)}</ol>
+          <h3 class="inline-ico">${icon("rain", 18)} Simulador: ¿y si cambia el clima?</h3>
+          <div class="sim">
+            <label>Lluvias: <strong id="rain-val">observadas</strong>
+              <input type="range" id="rain" min="0" max="150" step="10" value="0" aria-describedby="rain-help" /></label>
+            <span id="rain-help" class="small muted">0 = clima observado · 100% = lluvias como el pico de 2023 en este distrito</span>
+            <label>Temperatura: <strong id="temp-val">+0 °C</strong>
+              <input type="range" id="temp" min="0" max="3" step="0.5" value="0" /></label>
+            <p id="sim-out" class="small muted">Mueve los controles: el modelo se ejecuta en tu navegador.</p>
+          </div>
+        </div>
+        <div>
+          <h3 class="inline-ico">${icon("activity", 18)} Todas las enfermedades (próximas 4 semanas)</h3>
+          <div id="riskrows">${riskRows(p.riesgos)}</div>
+          <div class="ai-actions">
+            <button class="btn primary" id="explain" type="button">${icon("sparkles", 18)} Explicar con IA</button>
+            <a class="btn" id="pdf" href="/reporte?escenario=${scenarioSel.value}&d=${id}" target="_blank" rel="noopener">${icon("fileText", 18)} Informe PDF</a>
+          </div>
+          <div id="ai" class="ai-box" hidden></div>
+        </div>
+      </div>
+      <div class="flood-block lvl-border-${p.inundacion.nivel}">
+        <h3 class="inline-ico">${icon("flood", 20)} Lluvias extremas (inundación y huaico) ${badge(p.inundacion.nivel, FLOOD_LABEL[p.inundacion.nivel])}</h3>
+        <p>${floodText(p.inundacion)}</p>
+        <div class="flood-grid">
+          <div id="flood-chart"></div>
+          <div>
+            <h4 class="inline-ico">${icon("shield", 16)} Qué hacer</h4>
+            <ol class="actions">${app.contenido.lluvia_extrema.autoridad[p.inundacion.nivel].map((a) => `<li>${a}</li>`).join("")}</ol>
+          </div>
+        </div>
+      </div>`;
+
+    const fs = s.inundacion_serie[id];
+    if (fs) renderFlood(el.querySelector<HTMLElement>("#flood-chart")!, fs, p.inundacion);
+    setupSimulator(p, d.district);
+    el.querySelector("#explain")!.addEventListener("click", async (ev) => {
+      const btn = ev.currentTarget as HTMLButtonElement;
+      const box = el.querySelector<HTMLElement>("#ai")!;
+      btn.disabled = true; box.hidden = false; box.textContent = "Analizando…";
+      const contexto = {
+        distrito: d.district, departamento: d.department, poblacion: d.population, dengue: r, clima: p.clima, recursos_sugeridos: p.recursos,
+        otras: Object.fromEntries(Object.entries(p.riesgos).filter(([k]) => k !== "dengue").map(([k, v]) => [k, pct(v.prob)])),
+        nino12_anomalia_C: s.nino12, lluvias_extremas: p.inundacion,
+      };
+      const out = await explain("autoridad", contexto, fallbackText(d.district, p));
+      box.textContent = out.texto; btn.disabled = false;
+    });
+    document.querySelectorAll("#ranking button").forEach((b) => b.classList.toggle("sel", (b as HTMLElement).dataset.id === id));
+    markers[id]?.openTooltip();
+    $("#an-name").textContent = d.district;
+    fillCompareOptions(id);
+    renderAnalysis();
+    history.replaceState(null, "", `?escenario=${scenarioSel.value}&d=${id}`);
+    if (window.matchMedia("(max-width: 900px)").matches) el.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function fillCompareOptions(id: string) {
+    const prev = compareSel.value;
+    compareSel.innerHTML = app.distritos.filter((d) => d.district_id !== id)
+      .map((d) => `<option value="${d.district_id}">${d.district} (${d.department})</option>`).join("");
+    const fallback = visible().find((p) => p.district_id !== id)?.district_id ?? compareSel.options[0].value;
+    compareSel.value = prev && prev !== id && app.distritos.some((d) => d.district_id === prev) ? prev : fallback;
+  }
+
+  function renderAnalysis() {
+    if (!series || !selected || !currentRisk) return;
+    const s = scenario();
+    const weeksBack = Number(windowSel.value);
+    const metric = metricSel.value as "inc" | "dengue";
+    const d = district(selected);
+    $("#chart-ai-box").hidden = true;
+    if (activeTab === "hist") {
+      chartSummary = renderHistory($("#chart"), series, selected, { baseWeek: s.semana, horizon: app.horizonte_semanas, risk: currentRisk, weeksBack, showActual: scenarioSel.value !== "actual" });
+      const fc = app.pronostico[selected];
+      $("#fc-note").innerHTML = scenarioSel.value === "actual" && fc
+        ? `${icon("rain", 16)} Pronóstico Open-Meteo ${weekLabel(fc.desde)} – ${weekLabel(fc.hasta)}: ${fmt(fc.lluvia_16d)} mm de lluvia, máxima de ${fc.tmax_16d} °C.`
+        : `${icon("info", 16)} Modo replay: a la derecha de la línea punteada se ve lo que realmente pasó, para compararlo con el rango pronosticado.`;
+    } else if (activeTab === "heat") {
+      const rows = visible().map((pred) => ({ district: district(pred.district_id), pred }));
+      chartSummary = renderHeatmap($("#heatmap"), series, { baseWeek: s.semana, weeksBack: Math.min(weeksBack, 104), horizon: app.horizonte_semanas, rows, selected, onSelect: select, metric });
+    } else if (activeTab === "seasons") {
+      chartSummary = renderSeasons($("#seasons"), series, selected, d, metric);
+    } else {
+      chartSummary = renderDistrictCompare($("#compare"), series, d, district(compareSel.value), s.semana, weeksBack);
+    }
+  }
+
+  function chartFallback(): string {
+    const cs = chartSummary as any;
+    const d = district(selected);
+    if (activeTab === "hist" && cs) {
+      const peak = cs.picos[0];
+      return `• Tendencia de las últimas semanas: ${cs.tendencia}. ${cs.semanas_en_brote} de ${cs.ventana.semanas} semanas estuvieron sobre el umbral de brote.\n` +
+        (peak ? `• Pico principal: ${fmt(peak.casos)} casos la semana del ${peak.semana} (${peak.veces_umbral}× el umbral).\n` : "") +
+        `• Pronóstico a 4 semanas: entre ${fmt(cs.pronostico_4_semanas.p10)} y ${fmt(cs.pronostico_4_semanas.p90)} casos (probable ${fmt(cs.pronostico_4_semanas.p50)}).` +
+        (cs.lo_que_paso ? `\n• Lo que pasó: ${fmt(cs.lo_que_paso.casos_reales_4_semanas)} casos reales, ${cs.lo_que_paso.dentro_del_rango ? "dentro" : "fuera"} del rango pronosticado.` : "");
+    }
+    if (activeTab === "heat" && cs) return `• Más afectados en las últimas 4 semanas: ${cs.distritos_mas_afectados_ultimas_4_semanas.slice(0, 3).map((x: any) => `${x.distrito} (${x.valor})`).join(", ")}.\n• Mayor pronóstico: ${cs.distritos_con_mayor_pronostico.slice(0, 3).map((x: any) => x.distrito).join(", ")}.\n• ${cs.distritos_sin_casos_recientes} distritos sin casos recientes.`;
+    if (activeTab === "seasons" && cs) return cs.temporadas.map((t: any) => `• ${t.anio}${t.en_curso ? " (en curso)" : ""}: total ${fmt(t.total)}, pico ${t.pico_semanal} en ${t.mes_del_pico}.`).join("\n");
+    if (cs) return cs.distritos.map((x: any) => `• ${x.distrito}: ${fmt(x.casos)} casos, incidencia acumulada ${fmt(x.incidencia_acumulada_100k)} por 100 mil, lluvia ${fmt(x.lluvia_acumulada_mm)} mm.`).join("\n");
+    return `Sin datos para ${d.district}.`;
+  }
+
+  $("#chart-ai").addEventListener("click", async () => {
+    if (!chartSummary) return;
+    const btn = $<HTMLButtonElement>("#chart-ai"), box = $("#chart-ai-box");
+    btn.disabled = true; box.hidden = false; box.textContent = "Leyendo el gráfico…";
+    const contexto = { tipo_de_grafico: TAB_NAMES[activeTab], distrito: district(selected).district, escenario: scenario().etiqueta, semana_base: weekLabel(scenario().semana), ventana_semanas: Number(windowSel.value), medida: metricSel.value === "inc" ? "por 100 mil habitantes" : "casos", datos: chartSummary };
+    const out = await explain("grafico", contexto, chartFallback());
+    box.innerHTML = `<strong class="inline-ico">${icon("sparkles", 16)} Lectura del gráfico${out.fuente === "plantilla" ? " (plantilla)" : ""}</strong><br>` + out.texto.replace(/^\s*[*-]\s+/gm, "• ").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
+    btn.disabled = false;
+  });
+
+  function setupSimulator(p: DistrictPrediction, name: string) {
+    const rain = $<HTMLInputElement>("#rain"), temp = $<HTMLInputElement>("#temp"), out = $("#sim-out");
+    let pending = 0;
+    const run = async () => {
+      const ticket = ++pending;
+      const lluviaPct = Number(rain.value), tempDelta = Number(temp.value);
+      $("#rain-val").textContent = lluviaPct === 0 ? "observadas" : `${lluviaPct}% de 2023`;
+      $("#temp-val").textContent = `+${tempDelta} °C`;
+      out.textContent = "Calculando…";
+      try {
+        const sim = await simulate(app, p, { lluviaPct, tempDelta }, scenario().modelo.id);
+        if (ticket !== pending) return;
+        const r = sim.riesgos.dengue;
+        const delta = r.prob - p.riesgos.dengue.prob;
+        out.innerHTML = `Con este escenario: <strong>${pct(r.prob)}</strong> de probabilidad de brote (${delta >= 0 ? "+" : ""}${Math.round(delta * 100)} puntos) ${badge(r.nivel)}`;
+        $("#headline").innerHTML = headline(name, r);
+        $("#actions").innerHTML = actionsFor(r.nivel, sim.recursos);
+        $("#riskrows").innerHTML = riskRows(sim.riesgos);
+        currentRisk = r;
+        if (activeTab === "hist") renderAnalysis();
+      } catch (e) {
+        out.textContent = "No se pudo ejecutar el modelo en este navegador.";
+        console.error(e);
+      }
+    };
+    rain.addEventListener("input", run);
+    temp.addEventListener("input", run);
+  }
+
+  function refresh() {
+    const list = visible();
+    const s = scenario();
+    const replay = $("#replay");
+    replay.hidden = scenarioSel.value === "actual";
+    replay.innerHTML = `<strong>Modo replay — ${s.etiqueta}.</strong> El sistema predice como si estuviéramos en la semana del
+      ${weekLabel(s.semana)}. En "Historia y pronóstico" puedes comparar la predicción con lo que realmente pasó.
+      ${scenarioSel.value === "2023" ? "El modelo se entrenó solo con datos hasta 2021: nunca vio esta epidemia." : ""}`;
+    $("#model-note").innerHTML = `${icon("cpu", 14)} Modelo: ${s.modelo.id === "prod" ? `en producción (${s.modelo.origen}, datos hasta ${weekLabel(s.modelo.entrenado_hasta)})` : "campeón de evaluación, entrenado solo con 2015–2021"}`;
+    renderKpis(list); renderMap(list); renderRanking(list);
+    const target = list.find((p) => p.district_id === selected) ?? list[0];
+    if (target) select(target.district_id);
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => t.addEventListener("click", () => {
+    activeTab = t.dataset.tab!;
+    document.querySelectorAll<HTMLButtonElement>(".tab").forEach((x) => x.setAttribute("aria-selected", String(x === t)));
+    document.querySelectorAll<HTMLElement>(".tabpanel").forEach((p) => (p.hidden = p.id !== `tab-${activeTab}`));
+    renderAnalysis();
+  }));
+  document.querySelectorAll<HTMLButtonElement>(".seg-toggle button").forEach((b) => b.addEventListener("click", () => {
+    layer = b.dataset.layer as "dengue" | "lluvia";
+    document.querySelectorAll<HTMLButtonElement>(".seg-toggle button").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    renderMap(visible());
+    markers[selected]?.openTooltip();
+  }));
+  windowSel.addEventListener("change", renderAnalysis);
+  metricSel.addEventListener("change", renderAnalysis);
+  compareSel.addEventListener("change", renderAnalysis);
+  scenarioSel.addEventListener("change", refresh);
+  deptSel.addEventListener("change", refresh);
+
+  Promise.all([loadData(), loadSeries()]).then(([data, ser]) => {
+    app = data; series = ser; refresh();
+  });
+</script>
+
+<style>
+  .head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .filters, .controls { display: flex; gap: 12px; flex-wrap: wrap; }
+  .filters label, .controls label { display: flex; flex-direction: column; font-size: 0.8rem; font-weight: 600; color: var(--text-2); gap: 4px; min-width: 160px; }
+  #replay { margin-bottom: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  :global(.kpi) { display: flex; gap: 12px; align-items: center; padding: 16px; }
+  :global(.kpi > div) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  :global(.kpi strong) { font-size: 1.45rem; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .map-card { padding: 16px; }
+  .map-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .map-head .chart-title { margin: 0; }
+  .seg-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: var(--surface-2); }
+  .seg-toggle button { display: inline-flex; gap: 6px; align-items: center; border: 0; background: none; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 0.85rem; color: var(--text-2); }
+  .seg-toggle button[aria-checked="true"] { background: var(--brand); color: #fff; }
+  :global(.flood-block) { margin-top: 22px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; border-left-width: 5px; }
+  :global(.flood-block.lvl-border-alto) { border-left-color: var(--critical); }
+  :global(.flood-block.lvl-border-medio) { border-left-color: var(--warning); }
+  :global(.flood-block.lvl-border-bajo) { border-left-color: var(--good); }
+  :global(.flood-block h3) { margin-top: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  :global(.flood-block h4) { margin: 0 0 6px; }
+  :global(.flood-grid) { display: grid; grid-template-columns: 1.7fr 1fr; gap: 20px; align-items: start; }
+  #map { height: 420px; border-radius: 10px; z-index: 0; }
+  .map-legend { padding-top: 10px; }
+  .ranking { list-style: none; padding: 0; margin: 0; max-height: 440px; overflow: auto; }
+  :global(.ranking button) {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1.4fr) 1fr 48px 78px; align-items: center; gap: 10px;
+    background: none; border: 0; border-top: 1px solid var(--border); padding: 10px 6px; cursor: pointer; text-align: left; color: var(--text);
+  }
+  :global(.ranking button:hover), :global(.ranking button.sel) { background: var(--brand-soft); }
+  :global(.ranking .name) { display: flex; flex-direction: column; min-width: 0; }
+  :global(.ranking .name strong) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :global(.bar) { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; display: block; }
+  :global(.bar i) { display: block; height: 100%; border-radius: 4px; }
+  :global(.prob) { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .detail { margin-bottom: 16px; }
+  :global(.detail-head) { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  :global(.detail h2) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.7rem; }
+  :global(.detail h3) { margin-top: 18px; font-size: 1rem; }
+  :global(.headline-prob) { font-size: 1.1rem; }
+  :global(.headline-prob strong) { font-size: 1.7rem; }
+  :global(.climate-chips) { display: flex; gap: 8px; flex-wrap: wrap; }
+  :global(.chip-c) { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; font-weight: 700; }
+  :global(.chip-c svg) { color: var(--brand); }
+  :global(.chip-c small) { font-weight: 400; color: var(--text-2); }
+  :global(.detail-grid) { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  :global(.actions) { padding-left: 20px; margin: 0; }
+  :global(.actions li) { margin-bottom: 6px; }
+  :global(.sim) { display: grid; gap: 8px; background: var(--surface-2); padding: 12px; border-radius: 10px; }
+  :global(.sim label) { display: grid; gap: 4px; font-size: 0.9rem; }
+  :global(.riskrow) { display: grid; grid-template-columns: minmax(0, 1.3fr) 1fr 48px; gap: 10px; align-items: center; padding: 7px 0; font-size: 0.9rem; border-top: 1px solid var(--border); }
+  :global(.riskrow svg) { color: var(--text-2); }
+  :global(.ai-actions) { margin-top: 18px; }
+  :global(#ai) { margin-top: 12px; }
+  .analysis-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
+  .controls .chart-ai { align-self: flex-end; }
+  #chart-ai-box { margin-bottom: 14px; }
+  :global(.ai-actions) { display: flex; gap: 8px; flex-wrap: wrap; }
+  .compare-pick { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; color: var(--text-2); margin-bottom: 12px; }
+  .compare-pick select { width: auto; min-width: 240px; }
+  :global(.heat-scroll) { overflow-x: auto; padding-bottom: 6px; }
+  :global(table.mini) { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 12px; }
+  :global(table.mini th), :global(table.mini td) { text-align: left; padding: 8px 6px; border-top: 1px solid var(--border); }
+  :global(table.mini th) { color: var(--text-2); font-weight: 600; font-size: 0.8rem; }
+  @media (max-width: 900px) {
+    .row2, :global(.detail-grid), :global(.flood-grid) { grid-template-columns: 1fr; }
+    #map { height: 320px; }
+  }
+  @media (max-width: 480px) {
+    :global(.ranking button) { grid-template-columns: minmax(0, 1fr) 48px 70px; }
+    :global(.ranking .bar) { display: none; }
+  }
+</style>

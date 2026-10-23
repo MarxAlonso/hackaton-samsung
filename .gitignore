@@ -1,0 +1,27 @@
+# Python
+ml/.venv/
+__pycache__/
+.pytest_cache/
+ml/mlruns/
+ml/mlflow.db
+# Datos y modelos regenerables con ml/run_pipeline.sh (los artefactos que usan la web y la API sí se suben)
+ml/data/
+ml/models/
+
+# Node / Astro / Cloudflare
+web/node_modules/
+web/dist/
+web/.astro/
+web/.wrangler/
+web/.dev.vars
+web/.env
+
+# Sistema
+.DS_Store
+Thumbs.db
+sesion.md
+
+pdf-clases/
+# Material personal y del curso: no va al repositorio público
+pdf-clases/
+sesion.md

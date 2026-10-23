@@ -1,0 +1,258 @@
+---
+// Informe imprimible (PDF) de un distrito: para la autoridad de salud y para la población.
+// Se genera en el navegador con los datos del modelo; el PDF sale con "Guardar como PDF" del navegador.
+import "../styles/global.css";
+import { icon } from "../lib/icons";
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Informe · Alerta Salud Niño</title>
+    <script is:inline>
+      try { const t = localStorage.getItem("theme"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch {}
+    </script>
+  </head>
+  <body class="report-body">
+    <div class="toolbar no-print">
+      <a href="/" class="brand"><Fragment set:html={icon("arrowRight", 16)} /> Volver al panel</a>
+      <div class="toolbar-actions">
+        <label class="small">Para <select id="audience"><option value="ambos">Autoridad + población</option><option value="autoridad">Solo autoridad de salud</option><option value="ciudadano">Solo población</option></select></label>
+        <button class="btn" id="gen-ai" type="button"><Fragment set:html={icon("sparkles", 16)} /> Generar análisis con IA</button>
+        <button class="btn primary" id="print" type="button"><Fragment set:html={icon("download", 16)} /> Descargar PDF</button>
+      </div>
+    </div>
+    <p class="no-print hint small muted">Al presionar "Descargar PDF", en el cuadro de impresión elige <strong>Guardar como PDF</strong>. Los gráficos salen en vector, nítidos a cualquier tamaño.</p>
+
+    <main id="report" class="report">
+      <p class="muted">Cargando informe…</p>
+    </main>
+
+    <script>
+      import { loadData, loadSeries, fillTemplate, fmt, pct, weekLabel, NIVEL_LABEL, type AppData, type SeriesData, type DiseaseKey, type Nivel } from "../lib/data";
+      import { icon } from "../lib/icons";
+      import { renderHistory, type HistorySummary } from "../lib/chart";
+      import { renderFlood, floodSentence } from "../lib/flood";
+      import { renderSeasons } from "../lib/compare";
+      import { explain } from "../lib/explain";
+
+      const params = new URLSearchParams(location.search);
+      const id = params.get("d") ?? "piu-piura";
+      const scenarioKey = (["actual", "2023", "2017"].includes(params.get("escenario") ?? "") ? params.get("escenario") : "actual") as "actual" | "2023" | "2017";
+      const audienceSel = document.querySelector<HTMLSelectElement>("#audience")!;
+      audienceSel.value = params.get("para") ?? "ambos";
+      const FEATURE_NAMES: Record<string, string> = {
+        rain_0_1: "Lluvia últimas 2 semanas (mm)", rain_2_6: "Lluvia hace 2–6 semanas (mm)", rain_7_12: "Lluvia hace 7–12 semanas (mm)",
+        tmean_0_3: "Temperatura media 4 semanas (°C)", tmax_0: "Temperatura máxima (°C)", humidity_0_3: "Humedad 4 semanas (%)",
+        nino12: "Anomalía del mar Niño 1+2 (°C)", oni: "Índice ONI", inc_0: "Incidencia esta semana (por 100 mil)",
+        inc_0_3: "Incidencia últimas 4 semanas (por 100 mil)", inc_52: "Incidencia último año (por 100 mil)", canal_next: "Umbral canal endémico (por 100 mil)",
+        altitude: "Altitud (m)", water_access: "Hogares con agua por red (proporción)",
+      };
+      let app: AppData, series: SeriesData, hist: HistorySummary, aiText = "";
+
+      function applyAudience() {
+        const a = audienceSel.value;
+        document.querySelectorAll<HTMLElement>("[data-aud]").forEach((el) => (el.hidden = a !== "ambos" && el.dataset.aud !== a));
+      }
+
+      function render() {
+        const s = app.escenarios[scenarioKey];
+        const d = app.distritos.find((x) => x.district_id === id)!;
+        const p = s.distritos.find((x) => x.district_id === id)!;
+        const r = p.riesgos.dengue;
+        const info = app.contenido.enfermedades;
+        const fc = app.pronostico[id];
+        const m = app.metricas.dengue;
+        const hoy = new Date().toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
+        const lvl = (n: Nivel) => `<span class="badge lvl-${n}">${NIVEL_LABEL[n]}</span>`;
+
+        document.querySelector("#report")!.innerHTML = `
+          <header class="rep-head">
+            <div>
+              <p class="eyebrow">Alerta Salud Niño · Informe de alerta temprana</p>
+              <h1>${d.district} <span class="muted">· ${d.province}, ${d.department}</span></h1>
+              <p class="muted">Semana base: ${weekLabel(s.semana)} · Horizonte: ${app.horizonte_semanas} semanas · Generado el ${hoy}${scenarioKey !== "actual" ? ` · <strong>Modo replay ${s.etiqueta}</strong>` : ""}</p>
+            </div>
+            <div class="rep-level lvl-${r.nivel}">
+              ${icon(r.nivel === "alto" ? "alertOctagon" : r.nivel === "medio" ? "alertTriangle" : "checkCircle", 28)}
+              <div><strong>${NIVEL_LABEL[r.nivel]} de dengue</strong><span>${pct(r.prob)} de probabilidad de brote</span></div>
+            </div>
+          </header>
+
+          <section class="rep-grid3">
+            <div class="rep-kpi"><span class="eyebrow">Casos esperados (4 semanas)</span><strong>${fmt(r.casos_p50 ?? 0)}</strong><span class="small muted">rango ${fmt(r.casos_p10 ?? 0)} – ${fmt(r.casos_p90 ?? 0)} · confianza ${r.confianza}</span></div>
+            <div class="rep-kpi"><span class="eyebrow">Clima reciente</span><strong>${fmt(p.clima.lluvia_2_a_6sem)} mm · ${p.clima.tmax} °C</strong><span class="small muted">lluvia hace 2–6 semanas · temperatura máxima</span></div>
+            <div class="rep-kpi"><span class="eyebrow">El Niño costero</span><strong>${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C</strong><span class="small muted">anomalía del mar Niño 1+2 (NOAA) · ONI ${s.oni > 0 ? "+" : ""}${s.oni.toFixed(2)}</span></div>
+          </section>
+
+          <section id="ai-section" class="rep-ai" ${aiText ? "" : "hidden"}>
+            <h2 class="inline-ico">${icon("sparkles", 20)} Análisis</h2>
+            <div class="ai-text">${aiText}</div>
+          </section>
+
+          <section>
+            <h2 class="inline-ico">${icon("activity", 20)} Todos los riesgos (próximas 4 semanas)</h2>
+            <table class="rep-table">
+              <thead><tr><th>Enfermedad</th><th>Probabilidad</th><th>Nivel</th><th>Detonante</th></tr></thead>
+              <tbody>${(Object.keys(p.riesgos) as DiseaseKey[]).map((k) => `<tr><td>${info[k].nombre}</td><td>${pct(p.riesgos[k].prob)}</td><td>${lvl(p.riesgos[k].nivel)}</td><td class="small muted">${info[k].causa}</td></tr>`).join("")}</tbody>
+            </table>
+          </section>
+
+          <section>
+            <h2 class="inline-ico">${icon("chart", 20)} Historia y pronóstico de dengue</h2>
+            <div id="rep-chart"></div>
+          </section>
+
+          <section>
+            <h2 class="inline-ico">${icon("flood", 20)} Lluvias extremas (inundación y huaico) ${lvl(p.inundacion.nivel)}</h2>
+            <p>${floodSentence(p.inundacion, app.contenido.lluvia_extrema.info.despues)}</p>
+            <div id="rep-flood"></div>
+          </section>
+
+          <section data-aud="autoridad">
+            <h2 class="inline-ico">${icon("hospital", 20)} Para la autoridad de salud</h2>
+            <h3>Acciones recomendadas</h3>
+            <ol>${app.contenido.autoridad.dengue[r.nivel].map((a) => `<li>${fillTemplate(a, p.recursos)}</li>`).join("")}</ol>
+            <h3>Ante lluvias extremas (${p.inundacion.nivel})</h3>
+            <ol>${app.contenido.lluvia_extrema.autoridad[p.inundacion.nivel].map((a) => `<li>${a}</li>`).join("")}</ol>
+            <h3>Recursos estimados</h3>
+            <table class="rep-table">
+              <tbody>
+                <tr><td>Pruebas rápidas de dengue (NS1/IgM)</td><td><strong>${fmt(p.recursos.pruebas)}</strong> unidades</td><td class="small muted">1,5 × casos del escenario pesimista</td></tr>
+                <tr><td>Camas de observación</td><td><strong>${fmt(p.recursos.camas)}</strong> camas</td><td class="small muted">4% de los casos del escenario pesimista</td></tr>
+                <tr><td>Semanas en brote (ventana)</td><td><strong id="rep-weeks">—</strong></td><td class="small muted">semanas sobre el canal endémico</td></tr>
+              </tbody>
+            </table>
+            ${scenarioKey === "actual" && fc ? `<p class="small">Pronóstico meteorológico Open-Meteo (${weekLabel(fc.desde)} – ${weekLabel(fc.hasta)}): ${fmt(fc.lluvia_16d)} mm de lluvia acumulada y máxima de ${fc.tmax_16d} °C.</p>` : ""}
+            <h3>Comparación de temporadas</h3>
+            <div id="rep-seasons"></div>
+          </section>
+
+          <section data-aud="ciudadano" class="rep-citizen">
+            <h2 class="inline-ico">${icon("home", 20)} Para la población de ${d.district}</h2>
+            <p>En las próximas 4 semanas, en tu distrito lo más importante es prevenir <strong>${info[p.top_riesgos[0]].nombre.toLowerCase()}</strong>${p.top_riesgos.length > 1 ? `, y también ${p.top_riesgos.slice(1).map((k) => info[k].nombre.toLowerCase()).join(" y ")}` : ""}.</p>
+            <div class="rep-grid3">
+              ${p.top_riesgos.map((k) => `<div class="rep-card">
+                <h3 class="inline-ico">${icon(info[k].icono, 20)} ${info[k].nombre} ${lvl(p.riesgos[k].nivel)}</h3>
+                <ul>${app.contenido.ciudadano[k].map((a) => `<li>${a}</li>`).join("")}</ul>
+                <p class="small"><strong>Ve al centro de salud si hay:</strong> ${info[k].senal_alarma.toLowerCase()}</p>
+              </div>`).join("")}
+            </div>
+            <div class="rep-card" style="margin:10px 0">
+              <h3 class="inline-ico">${icon("flood", 20)} Lluvias fuertes e inundaciones ${lvl(p.inundacion.nivel)}</h3>
+              <ul>${app.contenido.lluvia_extrema.ciudadano[p.inundacion.nivel].map((a) => `<li>${a}</li>`).join("")}</ul>
+            </div>
+            <p class="small"><strong>Recuerda:</strong> ante fiebre u otros síntomas acude a tu establecimiento de salud y no te automediques.</p>
+          </section>
+
+          <section data-aud="autoridad" class="rep-params">
+            <h2 class="inline-ico">${icon("cpu", 20)} Parámetros usados por el modelo</h2>
+            <table class="rep-table compact">
+              <tbody>${app.modelo.dengue_features.filter((f) => FEATURE_NAMES[f]).map((f) => `<tr><td>${FEATURE_NAMES[f]}</td><td><strong>${formatFeature(f, p.features[f])}</strong></td></tr>`).join("")}</tbody>
+            </table>
+            <p class="small muted">Modelo: Gradient Boosting (brote) + regresión por cuantiles (casos). Validación temporal ${app.metricas.periodo_prueba}: AUC ${m.modelo.auc}, recall ${Math.round(m.modelo.recall * 100)}%, cobertura del rango P10–P90 ${Math.round(m.casos.cobertura_p10_p90 * 100)}%. Línea base (canal endémico): AUC ${m.linea_base_canal_endemico.auc}.</p>
+          </section>
+
+          <footer class="rep-foot small muted">
+            <p><strong>Fuentes:</strong> clima diario por distrito de Open-Meteo (reanálisis ERA5); anomalía Niño 1+2 y ONI de NOAA CPC. <strong>Casos simulados</strong> a partir del clima real con mecanismos epidemiológicos; el sistema es de apoyo a la decisión y no reemplaza la vigilancia del MINSA ni los comunicados del ENFEN. Población y acceso a agua aproximados (INEI). Prototipo Hackathon ISIL 2026.</p>
+          </footer>`;
+
+        hist = renderHistory(document.querySelector("#rep-chart")!, series, id, { baseWeek: s.semana, horizon: app.horizonte_semanas, risk: r, weeksBack: 52, showActual: scenarioKey !== "actual" });
+        document.querySelector("#rep-weeks")!.textContent = `${hist.semanas_en_brote} de ${hist.ventana.semanas}`;
+        renderSeasons(document.querySelector("#rep-seasons")!, series, id, d, "inc");
+        const fs = s.inundacion_serie[id];
+        if (fs) renderFlood(document.querySelector("#rep-flood")!, fs, p.inundacion);
+        applyAudience();
+      }
+
+      function formatFeature(f: string, v: number) {
+        if (f === "water_access") return `${Math.round(v * 100)}%`;
+        if (f.startsWith("rain") || f === "altitude") return fmt(v);
+        return (Math.round(v * 10) / 10).toString();
+      }
+
+      async function generateAi() {
+        const btn = document.querySelector<HTMLButtonElement>("#gen-ai")!;
+        btn.disabled = true;
+        btn.innerHTML = `${icon("sparkles", 16)} Generando…`;
+        const s = app.escenarios[scenarioKey];
+        const d = app.distritos.find((x) => x.district_id === id)!;
+        const p = s.distritos.find((x) => x.district_id === id)!;
+        const contexto = {
+          distrito: d.district, departamento: d.department, poblacion: d.population, altitud_m: d.altitude, agua_por_red_pct: Math.round(d.water_access * 100),
+          semana_base: weekLabel(s.semana), nino12_anomalia_C: s.nino12, lluvias_extremas: p.inundacion, dengue: p.riesgos.dengue, clima: p.clima, recursos_sugeridos: p.recursos,
+          otras_enfermedades: Object.fromEntries(Object.entries(p.riesgos).filter(([k]) => k !== "dengue").map(([k, v]) => [k, { prob: pct(v.prob), nivel: v.nivel }])),
+          historia: hist, acciones_autoridad: app.contenido.autoridad.dengue[p.riesgos.dengue.nivel].map((a) => fillTemplate(a, p.recursos)),
+          medidas_poblacion: p.top_riesgos.flatMap((k) => app.contenido.ciudadano[k]).slice(0, 5),
+        };
+        const respaldo = `**Situación actual.** ${d.district} presenta ${pct(p.riesgos.dengue.prob)} de probabilidad de brote de dengue (${p.riesgos.dengue.nivel}), con tendencia ${hist.tendencia} y ${hist.semanas_en_brote} semanas sobre el umbral en el último año.\n**Factores.** ${fmt(p.clima.lluvia_2_a_6sem)} mm de lluvia entre 2 y 6 semanas atrás, máxima de ${p.clima.tmax} °C y anomalía del mar de ${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C.\n**Qué esperar.** Entre ${fmt(p.riesgos.dengue.casos_p10 ?? 0)} y ${fmt(p.riesgos.dengue.casos_p90 ?? 0)} casos en 4 semanas (probable ${fmt(p.riesgos.dengue.casos_p50 ?? 0)}).\n**Prioridades.** ${fillTemplate(app.contenido.autoridad.dengue[p.riesgos.dengue.nivel][0], p.recursos)}\n**Mensaje para la población.** ${app.contenido.ciudadano[p.top_riesgos[0]][0]}`;
+        const out = await explain("reporte", contexto, respaldo);
+        aiText = out.texto.replace(/^\s*[*-]\s+/gm, "• ").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
+        const sec = document.querySelector<HTMLElement>("#ai-section")!;
+        sec.hidden = false;
+        sec.querySelector(".ai-text")!.innerHTML = aiText + (out.fuente === "plantilla" ? `<p class="small muted">(Texto generado con plantilla: la IA no estaba disponible.)</p>` : "");
+        btn.disabled = false;
+        btn.innerHTML = `${icon("sparkles", 16)} Volver a generar`;
+      }
+
+      Promise.all([loadData(), loadSeries()]).then(([a, se]) => {
+        app = a; series = se; render();
+        document.title = `Informe ${app.distritos.find((x) => x.district_id === id)?.district ?? ""} · Alerta Salud Niño`;
+        if (params.get("ia") === "1") generateAi();
+      });
+      document.querySelector("#gen-ai")!.addEventListener("click", generateAi);
+      document.querySelector("#print")!.addEventListener("click", () => window.print());
+      audienceSel.addEventListener("change", applyAudience);
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  .report-body { background: var(--surface-2); }
+  .toolbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .toolbar .brand { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: var(--text-2); }
+  .toolbar .brand svg { transform: rotate(180deg); }
+  .toolbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toolbar-actions select { width: auto; padding: 8px 10px; }
+  .hint { text-align: center; margin: 10px 16px 0; }
+  .report { max-width: 900px; margin: 16px auto 40px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 36px 40px; box-shadow: var(--shadow); }
+  .report section { margin-top: 26px; }
+  .report h2 { font-size: 1.15rem; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .report h3 { font-size: 1rem; margin-top: 14px; }
+  .rep-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .rep-head h1 { font-size: 1.8rem; }
+  .rep-level { display: flex; gap: 10px; align-items: center; padding: 12px 16px; border-radius: 12px; }
+  .rep-level div { display: flex; flex-direction: column; }
+  .rep-level span { font-size: 0.85rem; }
+  .rep-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .rep-kpi { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .rep-kpi strong { font-size: 1.3rem; }
+  .rep-ai { background: var(--brand-soft); border: 1px dashed var(--brand); border-radius: 12px; padding: 14px 18px; }
+  .rep-ai h2 { border: 0; margin-bottom: 4px; }
+  .rep-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .rep-table th, .rep-table td { text-align: left; padding: 7px 6px; border-top: 1px solid var(--border); vertical-align: top; }
+  .rep-table th { color: var(--text-2); font-weight: 600; font-size: 0.8rem; }
+  .rep-table.compact td { padding: 4px 6px; }
+  .rep-card { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
+  .rep-card ul { padding-left: 18px; margin: 6px 0; }
+  .rep-card h3 { margin-top: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .rep-foot { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 10px; }
+  table.mini { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 10px; }
+  table.mini th, table.mini td { text-align: left; padding: 6px; border-top: 1px solid var(--border); }
+  @media (max-width: 700px) { .rep-grid3 { grid-template-columns: 1fr; } .report { padding: 20px 16px; } }
+
+  @media print {
+    @page { size: A4; margin: 14mm 12mm; }
+    :root { color-scheme: light; --bg: #fff; --surface: #fff; --surface-2: #f3f3f0; --border: #ddd; --text: #000; --text-2: #333; --text-3: #666; }
+    html, body { background: #fff !important; }
+    .no-print { display: none !important; }
+    .report { max-width: none; margin: 0; border: 0; box-shadow: none; padding: 0; }
+    .report section { break-inside: avoid; }
+    .rep-ai { break-inside: avoid; }
+    .chart-tooltip { display: none !important; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>

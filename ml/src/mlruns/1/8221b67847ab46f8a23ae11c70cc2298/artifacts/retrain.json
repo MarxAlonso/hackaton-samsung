@@ -1,0 +1,36 @@
+{
+  "generado": "2026-10-23 08:50",
+  "ventana_comparacion": {
+    "desde": "2026-03-16",
+    "hasta": "2026-09-07",
+    "semanas": 26
+  },
+  "campeon": {
+    "nombre": "evaluación (2015–2021)",
+    "brier": 0.0493,
+    "auc": 0.977,
+    "mae_casos_p50": 11.99,
+    "cobertura_p10_p90": 0.948,
+    "prob_media": 0.088,
+    "tasa_brote": 0.128,
+    "n": 1222
+  },
+  "retador": {
+    "nombre": "entrenado hasta 2026-03-09",
+    "brier": 0.0335,
+    "auc": 0.985,
+    "mae_casos_p50": 10.35,
+    "cobertura_p10_p90": 0.942,
+    "prob_media": 0.112,
+    "tasa_brote": 0.128,
+    "n": 1222
+  },
+  "decision": "promovido",
+  "mejora_brier_pct": 32.0,
+  "motivo": "El retador mejora el Brier 32% en las últimas 26 semanas (mínimo exigido 5%).",
+  "modelo_en_produccion": {
+    "origen": "retador promovido",
+    "entrenado_hasta": "2026-09-07"
+  },
+  "regla": "Se promueve si el Brier mejora ≥ 5% y el AUC no cae más de 0.01."
+}

@@ -1,0 +1,226 @@
+---
+import Layout from "../layouts/Layout.astro";
+import app from "../../public/data/app.json";
+import { icon } from "../lib/icons";
+
+const byDept = Object.groupBy(app.distritos, (d) => d.department);
+---
+
+<Layout title="Mi distrito" active="ciudadano" description="Semáforo de riesgo de salud por El Niño en tu distrito y qué hacer.">
+  <section class="picker card">
+    <label for="district"><h1>¿Cómo está tu distrito?</h1></label>
+    <p class="muted">Elige tu distrito para ver los riesgos de salud de las próximas 4 semanas y qué puedes hacer en casa.</p>
+    <div class="row">
+      <select id="district">
+        <option value="">Elige tu distrito…</option>
+        {Object.entries(byDept).map(([dept, list]) => (
+          <optgroup label={dept}>
+            {list!.map((d) => <option value={d.district_id}>{d.district} ({d.province})</option>)}
+          </optgroup>
+        ))}
+      </select>
+      <button class="btn" id="locate" type="button"><Fragment set:html={icon("pin", 18)} /> Usar mi ubicación</button>
+    </div>
+    <p id="locate-msg" class="small muted" aria-live="polite"></p>
+  </section>
+
+  <section id="result" hidden aria-live="polite">
+    <div id="light" class="light card"></div>
+    <div id="flood-card"></div>
+    <div class="section-row">
+      <h2 class="section-title">Tus 3 riesgos principales y qué hacer</h2>
+      <a class="btn" id="pdf" href="#" target="_blank" rel="noopener"><Fragment set:html={icon("fileText", 18)} /> Descargar informe PDF</a>
+    </div>
+    <div id="risks" class="risks"></div>
+
+    <div class="card chat">
+      <h2 class="inline-ico"><Fragment set:html={icon("sparkles", 20)} /> Pregúntale a la IA</h2>
+      <p class="muted small">Responde dudas de prevención. No da diagnósticos: si tienes síntomas, acude a tu centro de salud.</p>
+      <div class="chips">
+        <button type="button" class="chip">¿Cómo elimino criaderos en mi casa?</button>
+        <button type="button" class="chip">¿Cómo guardo agua de forma segura?</button>
+        <button type="button" class="chip">¿Qué hago si alguien tiene fiebre?</button>
+      </div>
+      <form id="ask" class="row">
+        <label for="question" class="sr-only">Tu pregunta</label>
+        <input id="question" type="text" maxlength="300" placeholder="Escribe tu pregunta…" autocomplete="off" />
+        <button class="btn primary" type="submit"><Fragment set:html={icon("send", 16)} /> Preguntar</button>
+      </form>
+      <div id="answer" class="ai-box" hidden></div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { loadData, NIVEL_LABEL, fmt, weekLabel, type AppData, type DiseaseKey } from "../lib/data";
+  import { icon } from "../lib/icons";
+  import { explain, citizenFallback } from "../lib/explain";
+
+  const select = document.querySelector<HTMLSelectElement>("#district")!;
+  const result = document.querySelector<HTMLElement>("#result")!;
+  let app: AppData;
+  let current = "";
+
+  const HEADLINE = {
+    alto: { title: "Riesgo alto", text: "Toma precauciones desde hoy.", icon: "alertOctagon" },
+    medio: { title: "Riesgo medio", text: "Mantente atento y previene.", icon: "alertTriangle" },
+    bajo: { title: "Riesgo bajo", text: "Sigue con la prevención de siempre.", icon: "checkCircle" },
+  };
+
+  function render(id: string) {
+    current = id;
+    const d = app.distritos.find((x) => x.district_id === id)!;
+    const p = app.escenarios.actual.distritos.find((x) => x.district_id === id)!;
+    const info = app.contenido.enfermedades;
+    // El semáforo toma el peor entre el riesgo de enfermedades y el de lluvias extremas
+    const RANK = { bajo: 0, medio: 1, alto: 2 } as const;
+    const fl = p.inundacion;
+    const floodLeads = RANK[fl.nivel] > RANK[p.nivel];
+    const lvl = floodLeads ? fl.nivel : p.nivel;
+    const h = HEADLINE[lvl];
+    const main = floodLeads ? "lluvias fuertes e inundaciones" : info[p.top_riesgos[0]].nombre.toLowerCase();
+    const light = document.querySelector("#light")!;
+    light.className = `light card lvl-border-${lvl}`;
+    light.innerHTML = `
+      <div class="lights" aria-hidden="true">
+        ${(["alto", "medio", "bajo"] as const).map((n) => `<span class="bulb bulb-${n} ${lvl === n ? "on" : ""}"></span>`).join("")}
+      </div>
+      <div>
+        <p class="eyebrow">${d.district}, ${d.department} · próximas 4 semanas</p>
+        <h2 class="headline lvl-text-${lvl}">${icon(h.icon, 30)} ${h.title}</h2>
+        <p>${lvl === "bajo"
+          ? `${h.text} Ningún riesgo está por encima de lo normal ahora; abajo tienes las medidas más útiles para tu distrito.`
+          : `${h.text} Lo que más debes vigilar: <strong>${main}</strong>.`}</p>
+        <p class="small muted inline-ico">${icon("thermometer", 16)} Máxima reciente ${p.clima.tmax} °C &nbsp;·&nbsp; ${icon("rain", 16)} Lluvia de las últimas semanas ${p.clima.lluvia_2_a_6sem} mm</p>
+      </div>`;
+
+    const fi = app.contenido.lluvia_extrema.info;
+    const when = `${weekLabel(fl.fecha_max, false)}${fl.es_pronostico ? " (pronóstico)" : ""}`;
+    document.querySelector("#flood-card")!.innerHTML = `<article class="card risk flood-card lvl-border-${fl.nivel}">
+      <header>
+        <span class="ico-box lvl-${fl.nivel}">${icon("flood", 24)}</span>
+        <div><h3>Lluvias fuertes e inundaciones</h3><span class="badge lvl-${fl.nivel}">${fl.nivel === "alto" ? "Lluvia extrema" : fl.nivel === "medio" ? "Lluvia intensa" : "Sin alerta"}</span></div>
+      </header>
+      <p class="small muted">${fl.nivel === "bajo"
+        ? `No se esperan lluvias extremas en ${d.district} por ahora (máximo de ${fmt(fl.lluvia_max_3d_mm)} mm en 3 días).`
+        : `${fl.es_pronostico ? "Se pronostican" : "Se registraron"} ${fmt(fl.lluvia_max_3d_mm)} mm de lluvia en 3 días hacia el ${when}, muy por encima de lo normal para ${d.district}. ${fi.despues}`}</p>
+      <ul class="todo">${app.contenido.lluvia_extrema.ciudadano[fl.nivel].map((a) => `<li>${icon("checkCircle", 18)}<span>${a}</span></li>`).join("")}</ul>
+    </article>`;
+
+    document.querySelector("#risks")!.innerHTML = p.top_riesgos
+      .map((k: DiseaseKey) => {
+        const r = p.riesgos[k];
+        const e = info[k];
+        return `<article class="card risk">
+          <header>
+            <span class="ico-box lvl-${r.nivel}">${icon(e.icono, 24)}</span>
+            <div><h3>${e.nombre}</h3><span class="badge lvl-${r.nivel}">${NIVEL_LABEL[r.nivel]}</span></div>
+          </header>
+          <p class="small muted">${e.causa}</p>
+          <ul class="todo">${app.contenido.ciudadano[k].map((a) => `<li>${icon("checkCircle", 18)}<span>${a}</span></li>`).join("")}</ul>
+          <p class="small alarm">${icon("hospital", 16)} <strong>Acude al centro de salud si hay:</strong> ${e.senal_alarma.toLowerCase()}</p>
+          <details class="small"><summary>También relacionado</summary><p>${e.relacionadas}</p></details>
+        </article>`;
+      })
+      .join("");
+    result.hidden = false;
+    document.querySelector<HTMLElement>("#answer")!.hidden = true;
+    document.querySelector<HTMLAnchorElement>("#pdf")!.href = `/reporte?d=${id}&para=ciudadano`;
+    history.replaceState(null, "", `?d=${id}`);
+  }
+
+  async function ask(question: string) {
+    const box = document.querySelector<HTMLElement>("#answer")!;
+    const p = app.escenarios.actual.distritos.find((x) => x.district_id === current)!;
+    const d = app.distritos.find((x) => x.district_id === current)!;
+    const acciones = p.top_riesgos.flatMap((k) => app.contenido.ciudadano[k]);
+    box.hidden = false;
+    box.textContent = "Pensando…";
+    const contexto = {
+      distrito: d.district,
+      riesgos: Object.fromEntries(p.top_riesgos.map((k) => [app.contenido.enfermedades[k].nombre, p.riesgos[k].nivel])),
+      medidas: acciones,
+    };
+    const out = await explain("ciudadano", contexto, citizenFallback(question, d.district, acciones), question);
+    box.textContent = out.texto;
+  }
+
+  loadData().then((data) => {
+    app = data;
+    const fromUrl = new URLSearchParams(location.search).get("d");
+    if (fromUrl && app.distritos.some((d) => d.district_id === fromUrl)) {
+      select.value = fromUrl;
+      render(fromUrl);
+    }
+  });
+
+  select.addEventListener("change", () => select.value && render(select.value));
+
+  document.querySelector("#locate")!.addEventListener("click", () => {
+    const msg = document.querySelector("#locate-msg")!;
+    if (!navigator.geolocation) return (msg.textContent = "Tu navegador no permite ubicación.");
+    msg.textContent = "Buscando el distrito más cercano…";
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const near = app.distritos
+          .map((d) => ({ d, dist: Math.hypot(d.lat - coords.latitude, d.lon - coords.longitude) }))
+          .sort((a, b) => a.dist - b.dist)[0];
+        if (near.dist > 1.5) {
+          msg.textContent = "Estás fuera de la zona del piloto (Tumbes, Piura, Lambayeque). Elige un distrito de la lista.";
+          return;
+        }
+        msg.textContent = `Distrito más cercano: ${near.d.district}.`;
+        select.value = near.d.district_id;
+        render(near.d.district_id);
+      },
+      () => (msg.textContent = "No pudimos obtener tu ubicación. Elige tu distrito de la lista."),
+    );
+  });
+
+  document.querySelectorAll<HTMLButtonElement>(".chip").forEach((b) => b.addEventListener("click", () => ask(b.textContent!)));
+  document.querySelector("#ask")!.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = document.querySelector<HTMLInputElement>("#question")!;
+    if (q.value.trim()) ask(q.value.trim());
+  });
+</script>
+
+<style>
+  .picker { margin-bottom: 20px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row select, .row input { flex: 1 1 240px; }
+  .light { display: flex; gap: 20px; align-items: center; margin-bottom: 8px; border-width: 2px; }
+  :global(.lvl-border-alto) { border-color: var(--critical) !important; }
+  :global(.lvl-border-medio) { border-color: var(--warning) !important; }
+  :global(.lvl-border-bajo) { border-color: var(--good) !important; }
+  :global(.lvl-text-alto) { color: var(--critical-ink); }
+  :global(.lvl-text-medio) { color: var(--warning-ink); }
+  :global(.lvl-text-bajo) { color: var(--good-ink); }
+  :global(.lights) { display: flex; flex-direction: column; gap: 6px; background: #222; padding: 10px; border-radius: 16px; flex-shrink: 0; }
+  :global(.bulb) { width: 34px; height: 34px; border-radius: 50%; opacity: 0.22; }
+  :global(.bulb.on) { opacity: 1; box-shadow: 0 0 16px currentColor; }
+  :global(.bulb-alto) { background: var(--critical); color: var(--critical); }
+  :global(.bulb-medio) { background: var(--warning); color: var(--warning); }
+  :global(.bulb-bajo) { background: var(--good); color: var(--good); }
+  :global(.headline) { font-size: 1.8rem; display: flex; align-items: center; gap: 10px; }
+  .section-title { margin: 0; }
+  :global(.flood-card) { margin: 16px 0 4px; border-left-width: 5px; }
+  :global(.flood-card.lvl-border-alto) { border-left-color: var(--critical); }
+  :global(.flood-card.lvl-border-medio) { border-left-color: var(--warning); }
+  :global(.flood-card.lvl-border-bajo) { border-left-color: var(--good); }
+  .section-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 24px 0 12px; }
+  .risks { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  :global(.risk header) { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+  :global(.risk h3) { margin: 0 0 4px; }
+  :global(.todo) { padding-left: 0; list-style: none; margin: 8px 0; }
+  :global(.todo li) { padding: 7px 0; display: flex; gap: 8px; align-items: flex-start; border-top: 1px solid var(--border); }
+  :global(.todo li svg) { color: var(--good-ink); flex-shrink: 0; margin-top: 2px; }
+  :global(.alarm) { background: var(--surface-2); padding: 8px 10px; border-radius: 8px; }
+  :global(.alarm svg) { color: var(--critical-ink); }
+  .chat { margin-top: 24px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .chip { border: 1px solid var(--border); background: var(--surface-2); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 0.875rem; }
+  .chip:hover { border-color: var(--brand); }
+  #answer { margin-top: 12px; }
+  @media (max-width: 520px) { .light { flex-direction: column; align-items: flex-start; } :global(.lights) { flex-direction: row; } }
+</style>
