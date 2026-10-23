@@ -103,3 +103,7 @@ curl -X POST localhost:8000/optimize -H "content-type: application/json" -d '{"e
 ## Uso responsable
 
 Es un sistema de **apoyo a la decisión**: no reemplaza la vigilancia epidemiológica ni los comunicados del MINSA y el ENFEN. La IA solo redacta explicaciones con los números del modelo; no diagnostica ni receta. No se usan datos personales.
+
+## Licencia
+
+[MIT](LICENSE). Los casos de enfermedad son simulados; el sistema es de apoyo a la decisión y no reemplaza la vigilancia oficial.
