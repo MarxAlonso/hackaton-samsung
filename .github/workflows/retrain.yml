@@ -66,6 +66,11 @@ jobs:
           npm run build
           npx wrangler deploy
 
+      # Verifica el sitio publicado: páginas, datos sin NaN, modelos ONNX, PWA e IA
+      - name: Prueba de humo del sitio publicado
+        working-directory: web
+        run: node scripts/smoke.mjs
+
       # Avisa por el celular a quienes activaron alertas. Si falla no deshace la publicación del sitio.
       - name: Enviar alertas a los suscriptores
         continue-on-error: true

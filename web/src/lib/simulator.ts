@@ -30,6 +30,15 @@ async function session(name: string) {
 /** Nombre del archivo ONNX: "prod_" = modelo de producción (hoy); "clima_" = familia solo clima. */
 const modelName = (id: "prod" | "eval", tipo: ModeloTipo, base: string) => `${id === "prod" ? "prod_" : ""}${tipo === "clima" ? "clima_" : ""}${base}`;
 
+/** Descarga el runtime y los 4 modelos en segundo plano, para que el primer movimiento del simulador sea inmediato. */
+export function warmup(tipo: ModeloTipo, modelId: "prod" | "eval") {
+  const run = () => {
+    for (const base of ["dengue_outbreak", "dengue_cases_p10", "dengue_cases_p50", "dengue_cases_p90"]) session(modelName(modelId, tipo, base)).catch(() => {});
+  };
+  const idle = (globalThis as any).requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => void);
+  idle ? idle(run, { timeout: 4000 }) : setTimeout(run, 1500);
+}
+
 export interface ScenarioInput {
   lluviaPct: number; // 0 = clima observado; 100 = lluvias como el pico de 2023
   tempDelta: number; // °C

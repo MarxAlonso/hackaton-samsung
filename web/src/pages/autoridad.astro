@@ -113,7 +113,7 @@ import { icon } from "../lib/icons";
   import { renderFlood } from "../lib/flood";
   import { renderHeatmap } from "../lib/heatmap";
   import { renderSeasons, renderDistrictCompare } from "../lib/compare";
-  import { simulate } from "../lib/simulator";
+  import { simulate, warmup } from "../lib/simulator";
   import { explain } from "../lib/explain";
 
   type ScenarioKey = "actual" | "2023" | "2017";
@@ -469,6 +469,8 @@ import { icon } from "../lib/icons";
 
   Promise.all([loadData(), loadSeries()]).then(([data, ser]) => {
     app = data; series = ser; refresh();
+    const sc = scenario();
+    warmup(sc.distritos[0].modelo_tipo, sc.modelo.id);
   });
 </script>
 

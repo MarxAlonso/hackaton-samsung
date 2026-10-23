@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import { icon } from "../lib/icons";
+import app from "../../public/data/app.json";
 
 interface Props {
   title: string;
@@ -9,6 +10,7 @@ interface Props {
   wide?: boolean;
 }
 const { title, description = "Alertas tempranas de dengue y enfermedades asociadas a El Niño por distrito.", active, wide = false } = Astro.props;
+const fechaCorta = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 const nav = [
   { href: "/ciudadano", key: "ciudadano", label: "Soy ciudadano", icon: "home" },
   { href: "/autoridad", key: "autoridad", label: "Soy autoridad de salud", icon: "hospital" },
@@ -95,15 +97,51 @@ const nav = [
     </dialog>
     <button type="button" class="to-top" id="to-top" aria-label="Volver arriba" title="Volver arriba"><Fragment set:html={icon("arrowRight", 20)} /></button>
     <footer class="footer">
-      <p>
-        Prototipo para el Hackathon ISIL 2026. Clima real (Open-Meteo, NOAA); casos <strong>reales</strong> de dengue, diarreas,{" "}
-        infecciones respiratorias y leptospirosis del CDC-MINSA (datos abiertos); golpe de calor <strong>simulado</strong>. No reemplaza la
-        consulta médica ni los comunicados oficiales del MINSA y el ENFEN.
+      <div class="foot-grid">
+        <section class="foot-brand">
+          <strong>Alerta Salud <span>Niño</span></strong>
+          <p>Alertas tempranas de dengue y enfermedades asociadas a El Niño costero para {app.distritos.length} distritos de Tumbes, Piura y Lambayeque. Prototipo del Hackathon ISIL 2026.</p>
+          <button type="button" class="btn primary" data-open-demo><Fragment set:html={icon("sparkles", 18)} /> Ver la demo guiada</button>
+        </section>
+        <nav class="foot-col" aria-label="Producto">
+          <h2>Producto</h2>
+          <a href="/ciudadano">Soy ciudadano</a>
+          <a href="/autoridad">Soy autoridad de salud</a>
+          <a href="/plan">Plan de acción</a>
+        </nav>
+        <nav class="foot-col" aria-label="Proyecto">
+          <h2>El proyecto</h2>
+          <a href="/modelo">Cómo funciona el modelo</a>
+          <a href="/construccion">Cómo se construyó</a>
+          <a href="https://github.com/MarxAlonso/hackaton-samsung" target="_blank" rel="noopener">Código en GitHub</a>
+        </nav>
+        <section class="foot-col" aria-label="Estado de los datos">
+          <h2>Estado de los datos</h2>
+          <p><span class="foot-k">Último caso oficial</span> {fechaCorta(app.datos.ultimo_caso_oficial)}</p>
+          <p><span class="foot-k">Semana de la predicción</span> {fechaCorta(app.escenarios.actual.semana)}</p>
+          <p><span class="foot-k">Datos generados</span> {app.generado.slice(0, 10).split("-").reverse().join("/")}</p>
+        </section>
+      </div>
+      <p class="foot-legal">
+        Clima real (Open-Meteo, NOAA). Casos <strong>reales</strong> de dengue, diarreas, infecciones respiratorias y leptospirosis del CDC-MINSA
+        (Plataforma Nacional de Datos Abiertos, ODC-By); golpe de calor <strong>simulado</strong>. Apoyo a la decisión: no reemplaza la consulta
+        médica ni los comunicados oficiales del MINSA y el ENFEN.
       </p>
     </footer>
     <script>
       import { initPwa } from "../lib/pwa";
       initPwa();
+
+      // La demo guiada se abre en una ventana aparte (si el navegador la bloquea, se abre en esta misma)
+      document.querySelectorAll<HTMLElement>("[data-open-demo]").forEach((el) =>
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          const w = Math.min(1360, screen.availWidth), h = Math.min(900, screen.availHeight);
+          const win = window.open("/demo/", "demo-guiada", `popup=yes,width=${w},height=${h},left=${Math.max(0, (screen.availWidth - w) / 2)},top=${Math.max(0, (screen.availHeight - h) / 2)}`);
+          if (!win) location.href = "/demo/";
+          else win.focus();
+        }),
+      );
 
       const toTop = document.getElementById("to-top")!;
       const progress = document.querySelector<HTMLElement>(".scroll-progress")!;

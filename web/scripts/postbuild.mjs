@@ -13,7 +13,7 @@ const walk = (dir) => readdirSync(dir).flatMap((f) => {
 const toUrl = (p) => "/" + p.slice(dist.length + 1).split("\\").join("/");
 const fileOf = (u) => (u.endsWith("/") ? join(dist, u, "index.html") : join(dist, u));
 
-const pages = ["/", "/ciudadano/", "/autoridad/", "/plan/", "/modelo/", "/offline/"];
+const pages = ["/", "/ciudadano/", "/autoridad/", "/plan/", "/modelo/", "/construccion/", "/offline/"];
 const fixed = ["/manifest.webmanifest", "/icon.svg", "/favicon.svg", "/icons/icon-192.png", "/icons/badge-96.png"];
 const assets = existsSync(join(dist, "_astro")) ? walk(join(dist, "_astro")).filter((p) => !p.endsWith(".map")).map(toUrl) : [];
 const list = [...pages, ...fixed, ...assets].filter((u) => existsSync(fileOf(u)));

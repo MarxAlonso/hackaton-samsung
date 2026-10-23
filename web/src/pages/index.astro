@@ -8,6 +8,7 @@ const altos = actual.distritos.filter((d) => d.riesgos.dengue.nivel === "alto").
 const medios = actual.distritos.filter((d) => d.riesgos.dengue.nivel === "medio").length;
 const semana = new Date(actual.semana + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
 const nino = actual.nino12;
+const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 ---
 
 <Layout title="Inicio" active="inicio">
@@ -22,6 +23,7 @@ const nino = actual.nino12;
       <div class="cta">
         <a class="btn primary" href="/autoridad"><Fragment set:html={icon("hospital", 18)} /> Abrir panel de autoridad</a>
         <a class="btn" href="/ciudadano"><Fragment set:html={icon("home", 18)} /> Ver mi distrito</a>
+        <button type="button" class="btn" data-open-demo><Fragment set:html={icon("sparkles", 18)} /> Ver la demo guiada</button>
       </div>
     </div>
 
@@ -69,8 +71,8 @@ const nino = actual.nino12;
         <rect x="0" y="0" width="104" height="62" rx="10" fill="var(--surface)" stroke="var(--critical)" stroke-width="2"/>
         <circle cx="18" cy="18" r="7" fill="var(--critical)"/>
         <text x="32" y="22" font-size="11" font-weight="700" fill="var(--text)" font-family="system-ui">Riesgo alto</text>
-        <text x="10" y="42" font-size="10" fill="var(--text-2)" font-family="system-ui">brote en 3 semanas</text>
-        <text x="10" y="55" font-size="10" fill="var(--text-2)" font-family="system-ui">confianza alta</text>
+        <text x="10" y="42" font-size="10" fill="var(--text-2)" font-family="system-ui">brote en las próximas semanas</text>
+        <text x="10" y="55" font-size="10" fill="var(--text-2)" font-family="system-ui">con su nivel de confianza</text>
       </g>
     </svg>
   </section>
@@ -88,6 +90,16 @@ const nino = actual.nino12;
       <span class="ico-box brand"><Fragment set:html={icon("calendar", 22)} /></span>
       <div><span class="eyebrow">Época de mayor riesgo</span><strong class="big">Enero – mayo</strong><span class="muted small">el ENFEN prevé que El Niño costero dure hasta el verano 2027</span></div>
     </div>
+  </section>
+
+  <section class="health" aria-label="Estado del sistema">
+    <span class="eyebrow">Estado del sistema</span>
+    <ul>
+      <li><i class="dot ok"></i><span>Clima y pronóstico hasta <strong>{fecha(actual.ventana_lluvia.hasta)}</strong></span></li>
+      <li><i class={`dot ${actual.modelo.familia === "casos" ? "ok" : "warn"}`}></i><span>Último caso oficial (CDC-MINSA): <strong>{fecha(app.datos.ultimo_caso_oficial)}</strong>{actual.modelo.familia === "clima" ? " · hoy se estima solo con clima" : ""}</span></li>
+      <li><i class="dot ok"></i><span>Modelo reentrenado cada lunes · datos generados el <strong>{app.generado.slice(0, 10).split("-").reverse().join("/")}</strong></span></li>
+      <li><a href="/construccion/#estado">Ver el detalle</a></li>
+    </ul>
   </section>
 
   <section class="choices" aria-label="Elige tu perfil">
@@ -125,6 +137,12 @@ const nino = actual.nino12;
   .status > div { display: flex; gap: 12px; align-items: flex-start; }
   .status > div > div { display: flex; flex-direction: column; gap: 2px; }
   .big { font-size: 1.6rem; letter-spacing: -0.01em; }
+  .health { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-top: 14px; padding: 10px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); font-size: 0.88rem; }
+  .health ul { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 0; }
+  .health li { display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .dot.ok { background: var(--good); }
+  .dot.warn { background: var(--warning); }
   .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 28px 0; }
   .choice { text-decoration: none; color: var(--text); display: flex; flex-direction: column; gap: 8px; transition: transform 0.15s; }
   .choice:hover { transform: translateY(-2px); border-color: var(--brand); }

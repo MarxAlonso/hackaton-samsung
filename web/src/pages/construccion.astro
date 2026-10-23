@@ -1,0 +1,222 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { icon } from "../lib/icons";
+import app from "../../public/data/app.json";
+
+const actual = app.escenarios.actual;
+const rt: any = (app as any).reentrenamiento;
+const mon: any = (app as any).monitoreo;
+const cob: any = app.datos.cobertura;
+const fecha = (iso: string) => new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
+const estadoMon: Record<string, string> = { estable: "Estable", vigilar: "Vigilar", reentrenar: "Deriva detectada" };
+
+// Cifras medidas (ver "Rendimiento medido"): sitio publicado, caché vacía, CPU 4 veces más lenta
+// y red 4G lenta (1,6 Mbps, 150 ms) frente a red sin limitar. Mediana de 3 corridas.
+const PERF = {
+  medido: "23 oct. 2026",
+  panel: { lenta: "3,0 s", libre: "1,8 s" },
+  simInmediata: { lenta: "17,8 s", libre: "2,7 s" },
+  simLeyendo: { lenta: "5,9 s", libre: "0,1 s" },
+  kbPanel: "276 KB",
+  kbSimulador: "3,3 MB",
+};
+
+const fases = [
+  {
+    icon: "target", titulo: "1. Definir el problema",
+    texto: "El Niño costero calienta el mar, llueve más y sube el dengue semanas después. Quisimos adelantarnos a esos brotes con tres usuarios en mente: el ciudadano, la autoridad de salud y quien decide dónde enviar brigadas.",
+  },
+  {
+    icon: "database", titulo: "2. Datos y primer prototipo",
+    texto: "Armamos el clima real por distrito (Open-Meteo, NOAA) y un primer modelo. Creímos que los casos solo existían en PDF, así que los simulamos a partir del clima para poder construir todo el producto.",
+  },
+  {
+    icon: "cpu", titulo: "3. Modelo y producto",
+    texto: "Gradient Boosting para la probabilidad de brote y regresión por cuantiles para el rango de casos. Los modelos se exportan a ONNX y corren en el navegador. Paneles para ciudadano y autoridad, índice de lluvias extremas, optimizador de brigadas e informe PDF.",
+  },
+  {
+    icon: "refresh", titulo: "4. Operación automática",
+    texto: "Monitoreo de deriva de datos, reentrenamiento campeón contra retador y registro de experimentos. Cada lunes un flujo de GitHub Actions ingesta, entrena, prueba, publica y envía alertas.",
+  },
+  {
+    icon: "smartphone", titulo: "5. App instalable y alertas",
+    texto: "El sitio es una app que se instala, funciona sin internet y recibe alertas Web Push de su distrito. Probamos el modo sin conexión apagando el servidor de verdad.",
+  },
+  {
+    icon: "alertTriangle", titulo: "6. El giro: sí había datos reales",
+    texto: "Descubrimos que el CDC-MINSA publica los casos como datos abiertos. Rehicimos el pipeline con casos reales y las métricas cambiaron: las anteriores describían un mundo inventado. Hoy mostramos las cifras honestas, también las modestas.",
+  },
+];
+
+const herramientas = [
+  { icon: "database", capa: "Datos", items: [
+    ["Open-Meteo", "clima diario (reanálisis ERA5) y pronóstico de 16 días"],
+    ["NOAA CPC", "anomalía del mar Niño 1+2 e índice ONI"],
+    ["CDC-MINSA", "casos de dengue, EDA, IRA y leptospirosis (datos abiertos, ODC-By)"],
+    ["Gobierno Regional de Piura", "dengue 2025–2026, solo como contexto"],
+  ] },
+  { icon: "cpu", capa: "Modelo (Python)", items: [
+    ["pandas y pyarrow", "limpieza y tabla semanal por distrito"],
+    ["scikit-learn", "Gradient Boosting y cuantiles; regresión logística"],
+    ["skl2onnx y onnxruntime", "los modelos corren en el navegador"],
+    ["MLflow y pytest", "registro de experimentos y pruebas"],
+  ] },
+  { icon: "layers", capa: "Web", items: [
+    ["Astro 7", "páginas y rutas de servidor"],
+    ["Leaflet", "mapa de riesgo y de lluvias"],
+    ["SVG propio", "gráficos accesibles, sin librería"],
+    ["Service Worker y Web Push", "uso sin conexión y alertas (VAPID)"],
+  ] },
+  { icon: "send", capa: "Nube y operación", items: [
+    ["Cloudflare Workers", "hospedaje y rutas /api"],
+    ["Workers AI (Llama 3.3 70B)", "explicaciones en español con los números del modelo"],
+    ["Cloudflare KV", "suscripciones a alertas (solo distrito y dirección técnica)"],
+    ["GitHub Actions", "reentrenamiento y publicación semanal"],
+    ["FastAPI y Docker", "API REST de predicción y optimización"],
+  ] },
+];
+
+const lecciones = [
+  { t: "Un dato oficial incompleto se descarta", d: `El último año del archivo nacional (2025) llega incompleto: Piura aparecía con 1 117 casos cuando el Gobierno Regional reporta 12 242. Lo descartamos y la cobertura oficial termina el ${fecha(app.datos.ultimo_caso_oficial)}.` },
+  { t: "Cruzar por código, no por nombre", d: "La Ñ llega dañada en el origen (Pariñas, Tambo Grande, Ferreñafe). Todo se une por UBIGEO." },
+  { t: "Desconocido no es cero", d: "Donde no hay dato oficial el gráfico lo dice y deja el hueco; nunca lo dibuja como cero." },
+  { t: "Evaluar sobre lo que el modelo no vio", d: "La prueba incluye las epidemias de 2023 y 2024. También comparamos año por año con \"sin información\": si el error no baja, el modelo no aporta." },
+  { t: "Decir la verdad sobre el límite", d: "Hoy el modelo usa solo clima y ordena bien los distritos, pero calcula mal cuántos casos habrá. El sitio lo avisa y limita su confianza a \"media\"." },
+  { t: "Dos implementaciones, una verificada", d: "El optimizador de brigadas existe en Python y en TypeScript; las pruebas comprueban que dan el mismo resultado." },
+];
+
+const pruebas = [
+  { n: "38", t: "Pruebas del pipeline", d: "semanas epidemiológicas, año provisional, descarga con detección de cambios, integridad contra el archivo oficial" },
+  { n: "19", t: "Pruebas de la API", d: "predicción, lotes y optimizador de brigadas" },
+  { n: "15", t: "Pruebas de humo del sitio publicado", d: "páginas, datos sin NaN, 16 modelos ONNX, PWA e IA; corren tras cada publicación" },
+  { n: "35", t: "Pruebas en navegador real", d: "recorridos de las páginas, instalación, uso sin conexión con el servidor apagado" },
+];
+---
+
+<Layout title="Cómo se construyó" description="Proceso, herramientas, decisiones, pruebas y rendimiento medido de Alerta Salud Niño.">
+  <section class="head">
+    <p class="eyebrow">Detrás del proyecto</p>
+    <h1>Cómo se construyó</h1>
+    <p class="lead muted">El proceso, las herramientas, lo que salió mal y lo que medimos, para que cualquiera pueda revisar, repetir y mejorar el trabajo.</p>
+    <div class="cta">
+      <button type="button" class="btn primary" data-open-demo><Fragment set:html={icon("sparkles", 18)} /> Ver la demo guiada</button>
+      <a class="btn" href="https://github.com/MarxAlonso/hackaton-samsung" target="_blank" rel="noopener"><Fragment set:html={icon("share", 18)} /> Código en GitHub</a>
+      <a class="btn" href="/modelo"><Fragment set:html={icon("cpu", 18)} /> Métricas del modelo</a>
+    </div>
+  </section>
+
+  <section id="estado" class="card" aria-labelledby="h-estado">
+    <h2 id="h-estado" class="chart-title"><Fragment set:html={icon("activity", 20)} /> Estado de los datos y del modelo</h2>
+    <p class="small muted">Se calcula con los archivos publicados, no a mano: cambia solo cada semana.</p>
+    <div class="state">
+      <div><span class="eyebrow">Último caso oficial</span><strong>{fecha(app.datos.ultimo_caso_oficial)}</strong><span class="small muted">CDC-MINSA; el año provisional se descarta</span></div>
+      <div><span class="eyebrow">Casos de Piura (Gob. Regional)</span><strong>{cob.dengue_gore_piura ? fecha(cob.dengue_gore_piura.hasta) : "—"}</strong><span class="small muted">solo contexto, no entrena</span></div>
+      <div><span class="eyebrow">Clima y pronóstico</span><strong>{fecha(actual.ventana_lluvia.hasta)}</strong><span class="small muted">Open-Meteo, 16 días</span></div>
+      <div><span class="eyebrow">Modelo de hoy</span><strong>{actual.modelo.familia === "clima" ? "Solo clima" : "Con casos"}</strong><span class="small muted">entrenado hasta {fecha(actual.modelo.entrenado_hasta)}</span></div>
+      <div><span class="eyebrow">Monitoreo</span><strong>{estadoMon[mon.estado] ?? mon.estado}</strong><span class="small muted">{rt.decision === "promovido" ? "retador promovido" : "se mantiene el campeón"}</span></div>
+      <div><span class="eyebrow">Datos generados</span><strong>{fecha(app.generado)}</strong><span class="small muted">reentrenamiento cada lunes</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-proceso">
+    <h2 id="h-proceso">El proceso</h2>
+    <ol class="timeline">
+      {fases.map((f) => (
+        <li>
+          <span class="ico-box brand"><Fragment set:html={icon(f.icon, 22)} /></span>
+          <div><strong>{f.titulo}</strong><p class="muted">{f.texto}</p></div>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section aria-labelledby="h-tools">
+    <h2 id="h-tools">Herramientas</h2>
+    <div class="tools">
+      {herramientas.map((h) => (
+        <article class="card">
+          <h3 class="inline-ico"><Fragment set:html={icon(h.icon, 20)} /> {h.capa}</h3>
+          <ul>
+            {h.items.map(([n, d]) => <li><strong>{n}</strong><span class="muted small">{d}</span></li>)}
+          </ul>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section aria-labelledby="h-lec">
+    <h2 id="h-lec">Decisiones y lecciones</h2>
+    <div class="lessons">
+      {lecciones.map((l) => (
+        <article class="card"><strong>{l.t}</strong><p class="small muted">{l.d}</p></article>
+      ))}
+    </div>
+  </section>
+
+  <section aria-labelledby="h-pru">
+    <h2 id="h-pru">Calidad y pruebas</h2>
+    <div class="tests">
+      {pruebas.map((p) => (
+        <article class="card"><span class="num">{p.n}</span><strong>{p.t}</strong><span class="small muted">{p.d}</span></article>
+      ))}
+    </div>
+    <p class="small muted">Cada lunes el flujo de GitHub Actions corre las pruebas del pipeline y de la API antes de publicar, y la prueba de humo después. Si algo falla, no se publica un modelo roto. Código en <code>.github/workflows/retrain.yml</code> y <code>web/scripts/smoke.mjs</code>.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-perf">
+    <h2 id="h-perf" class="chart-title"><Fragment set:html={icon("trendingUp", 20)} /> Rendimiento medido</h2>
+    <p class="small muted">Medido el {PERF.medido} en el sitio publicado, con la caché vacía y la CPU 4 veces más lenta que la de un computador (similar a un celular de gama media). Mediana de 3 corridas.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Qué se mide</th><th>4G lenta<br /><span class="small muted">1,6 Mbps · 150 ms</span></th><th>Sin limitar</th><th>Se descarga</th></tr></thead>
+        <tbody>
+          <tr><td>Panel de autoridad listo, con el riesgo del distrito</td><td><strong>{PERF.panel.lenta}</strong></td><td>{PERF.panel.libre}</td><td>{PERF.kbPanel}</td></tr>
+          <tr><td>Primera simulación "¿y si llueve más?" si se usa apenas carga el panel</td><td><strong>{PERF.simInmediata.lenta}</strong></td><td>{PERF.simInmediata.libre}</td><td>{PERF.kbSimulador} (motor y modelos)</td></tr>
+          <tr><td>Primera simulación tras 12 s de lectura del panel</td><td><strong>{PERF.simLeyendo.lenta}</strong></td><td>{PERF.simLeyendo.libre}</td><td>ya descargado en segundo plano</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted">En 4G lenta la descarga de 3,3 MB toma unos 17 s: por eso el motor y los modelos se bajan en segundo plano apenas el panel está listo, y quien lee unos segundos antes de mover los controles espera mucho menos. Una vez descargados, cada simulación tarda una décima de segundo y la app funciona sin conexión. El motor de ONNX (unos 3 MB comprimidos) se sirve desde un CDN público porque su archivo supera el límite de 25 MiB de Cloudflare Workers.</p>
+  </section>
+
+  <section class="card next" aria-labelledby="h-next">
+    <h2 id="h-next" class="chart-title"><Fragment set:html={icon("arrowRight", 20)} /> Lo que sigue</h2>
+    <ul>
+      <li><strong>Casos 2026</strong> de Tumbes, Piura y Lambayeque (CDC/DGE y DIRESA): activaría el modelo con casos recientes (AUC ≈ 0,93 frente a 0,72 solo con clima).</li>
+      <li><strong>Calibrar la intensidad</strong> de las epidemias grandes, que hoy el modelo subestima.</li>
+      <li><strong>Validar con una DIRESA</strong> los supuestos del plan de brigadas (efectividad, capacidad y costos).</li>
+      <li><strong>Más departamentos:</strong> el cruce ya es por código oficial (UBIGEO).</li>
+    </ul>
+  </section>
+</Layout>
+
+<style>
+  .head { padding: 8px 0 20px; }
+  .head h1 { margin: 4px 0 8px; }
+  .lead { max-width: 720px; font-size: 1.05rem; }
+  .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  section { margin-bottom: 28px; }
+  section.card { padding: 20px; }
+  h2 { margin: 0 0 12px; }
+  .chart-title { margin-top: 0; }
+  .state { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+  .state > div { display: flex; flex-direction: column; gap: 2px; padding: 12px; background: var(--surface-2); border-radius: 10px; }
+  .state strong { font-size: 1.15rem; }
+  .timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
+  .timeline li { display: flex; gap: 14px; align-items: flex-start; position: relative; padding-bottom: 18px; }
+  .timeline li:not(:last-child)::before { content: ""; position: absolute; left: 21px; top: 48px; bottom: 4px; width: 2px; background: var(--border); }
+  .timeline p { margin: 4px 0 0; max-width: 760px; line-height: 1.5; }
+  .tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .tools ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; }
+  .tools li { display: flex; flex-direction: column; gap: 1px; }
+  .lessons { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .lessons p { margin: 6px 0 0; line-height: 1.5; }
+  .tests { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 10px; }
+  .tests article { display: flex; flex-direction: column; gap: 4px; }
+  .tests .num { font-size: 2rem; font-weight: 800; color: var(--brand); letter-spacing: -0.02em; line-height: 1; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-2); font-weight: 600; }
+  .next ul { padding-left: 18px; display: grid; gap: 8px; margin: 8px 0 0; }
+</style>

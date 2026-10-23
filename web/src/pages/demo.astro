@@ -1,0 +1,250 @@
+---
+import "../styles/global.css";
+import { icon } from "../lib/icons";
+import app from "../../public/data/app.json";
+
+// Guion de la demo. Cada paso carga una página real del sitio en el marco de la derecha;
+// "foco" es el elemento que se muestra al cargar (el marco es del mismo sitio, así que se puede desplazar).
+const nDistritos = app.escenarios["2023"].distritos.length;
+const pasos = [
+  {
+    icon: "home", min: "0:20", titulo: "El problema",
+    url: "/",
+    decir: "El Niño costero calienta el mar frente a Piura y Tumbes, llueve más, se forman criaderos del zancudo y sube el dengue. Hoy las DIRESA reaccionan cuando los casos ya subieron.",
+    mirar: ["La temperatura del mar sobre lo normal (NOAA, dato real).", "Cuántos distritos están en riesgo alto y medio hoy.", "Dos entradas: ciudadano y autoridad de salud."],
+  },
+  {
+    icon: "user", min: "0:30", titulo: "Un ciudadano ve su distrito",
+    url: "/ciudadano/?d=piu-castilla", foco: "#light",
+    decir: "Un vecino de Castilla ve un semáforo, sus riesgos principales y qué hacer en casa, sin tecnicismos. Puede descargar un informe, instalar la app y recibir alertas.",
+    mirar: ["El semáforo y el lenguaje sencillo.", "Las acciones concretas para la casa.", "Las lluvias fuertes se avisan aparte, con su propio nivel."],
+  },
+  {
+    icon: "hospital", min: "0:40", titulo: "Una autoridad prioriza hoy",
+    url: "/autoridad/?escenario=actual&d=lam-olmos", foco: "#headline",
+    decir: "La DIRESA ve qué distritos vigilar primero. Hoy no hay casos oficiales recientes (el último es de diciembre de 2024), así que el sistema lo dice con claridad y estima solo con clima.",
+    mirar: ["El aviso amarillo: estimación solo con clima, para priorizar y no como cifra exacta.", "El mapa y el ranking de distritos.", "El rango de casos (P10 a P90) y el nivel de confianza."],
+  },
+  {
+    icon: "calendar", min: "0:40", titulo: "¿Habría avisado en 2023?",
+    url: "/autoridad/?escenario=2023&d=lam-chiclayo", foco: "#replay",
+    decir: "Volvemos a abril de 2023 con un modelo entrenado solo hasta 2021: nunca vio esa epidemia. Los casos que se comparan son reales, del CDC-MINSA.",
+    mirar: [`El acierto de la alerta entre los ${nDistritos} distritos.`, "\"Lo que realmente pasó\" frente a lo que anticipó el modelo.", "En el gráfico, el rango pronosticado y los casos reales a la derecha de la línea."],
+  },
+  {
+    icon: "rain", min: "0:30", titulo: "¿Y si llueve como en 2023?",
+    url: "/autoridad/?escenario=actual&d=piu-castilla", foco: "#rain",
+    decir: "El modelo corre dentro del navegador. Se mueve la lluvia o la temperatura y el riesgo se recalcula al instante, sin enviar nada a un servidor.",
+    mirar: ["Mueve el control de lluvias y mira cambiar la probabilidad.", "Funciona sin internet una vez cargado."],
+  },
+  {
+    icon: "target", min: "0:40", titulo: "Dónde poner las brigadas",
+    url: "/plan/?escenario=2023&b=20", foco: "#kpis",
+    decir: "Con 20 brigadas, ¿a quién enviarlas? Un optimizador compara el reparto óptimo con repartir parejo y muestra cuántos casos se evitan, con rango de incertidumbre. Los costos son supuestos de ejemplo que cada DIRESA puede editar.",
+    mirar: ["Los casos evitados frente a repartir parejo.", "Los supuestos editables: efectividad, habitantes por brigada, costos.", "El botón para justificar el plan con IA."],
+  },
+  {
+    icon: "shield", min: "0:40", titulo: "Lo que el modelo sí y no sabe",
+    url: "/modelo/", foco: "main",
+    decir: "Mostramos las métricas completas, también las malas. Con casos recientes el modelo detecta bien los brotes; solo con clima ordena los distritos pero calcula mal cuántos casos habrá. Lo que más lo mejoraría son los casos de 2026.",
+    mirar: ["Tabla año por año contra \"sin información\".", "La deriva de datos y la decisión de reentrenar.", "Las fuentes, con fecha de cada dato."],
+  },
+  {
+    icon: "bell", min: "0:30", titulo: "Alertas en el celular",
+    url: "/ciudadano/?d=piu-castilla", foco: "#alerts-card",
+    decir: "La app se instala en el celular, funciona sin conexión y avisa cuando sube el riesgo del distrito. Solo se guarda el distrito y la dirección técnica del navegador: ningún dato personal.",
+    mirar: ["\"Activar alertas\" y \"Ver cómo se verá\".", "Cada lunes el sistema reentrena y avisa solo si el riesgo es alto, sube o baja."],
+  },
+  {
+    icon: "layers", min: "0:20", titulo: "Cómo se construyó",
+    url: "/construccion/", foco: "main",
+    decir: "Todo es abierto y se actualiza solo cada semana. Aquí está el proceso, las herramientas, lo que salió mal y lo que medimos.",
+    mirar: ["Estado de los datos y del modelo.", "Pruebas automáticas y tiempos de carga medidos."],
+  },
+];
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="robots" content="noindex" />
+    <title>Demo guiada · Alerta Salud Niño</title>
+    <script is:inline>
+      try {
+        const t = localStorage.getItem("theme");
+        if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body class="demo">
+    <div class="shell">
+      <aside class="guide" aria-label="Guía de la demo">
+        <header class="g-head">
+          <a href="/" class="g-brand" target="_blank" rel="noopener" title="Abrir el sitio en una pestaña">
+            <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="var(--brand)" /><path d="M16 7c-4 5-6 8.5-6 11.5a6 6 0 0 0 12 0C22 15.5 20 12 16 7z" fill="#fff" /><path d="M13 18.5h6M16 15.5v6" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" /></svg>
+            <span>Demo guiada</span>
+          </a>
+          <div class="g-tools">
+            <button type="button" id="play" class="icon-btn" title="Avanzar solo cada 25 segundos" aria-pressed="false"><Fragment set:html={icon("refresh", 18)} /><span class="sr">Reproducción automática</span></button>
+            <button type="button" id="theme" class="icon-btn" title="Modo claro / oscuro" aria-label="Cambiar entre modo claro y oscuro">
+              <span class="ico-sun"><Fragment set:html={icon("sun", 18)} /></span>
+              <span class="ico-moon"><Fragment set:html={icon("moon", 18)} /></span>
+            </button>
+          </div>
+        </header>
+
+        <div class="progress" role="tablist" aria-label="Pasos">
+          {pasos.map((p, i) => <button type="button" role="tab" class="dot" data-i={i} aria-label={`Paso ${i + 1}: ${p.titulo}`} title={p.titulo}></button>)}
+        </div>
+
+        <div class="g-body" aria-live="polite">
+          <p class="eyebrow"><span id="counter"></span> · <span id="mins"></span></p>
+          <h1 id="titulo"></h1>
+          <section>
+            <h2 class="g-h">Qué decir</h2>
+            <p id="decir"></p>
+          </section>
+          <section>
+            <h2 class="g-h">Qué mirar</h2>
+            <ul id="mirar"></ul>
+          </section>
+        </div>
+
+        <footer class="g-nav">
+          <button type="button" class="btn" id="prev"><Fragment set:html={icon("arrowRight", 16)} /> Anterior</button>
+          <button type="button" class="btn primary" id="next">Siguiente <Fragment set:html={icon("arrowRight", 16)} /></button>
+        </footer>
+        <p class="g-help small muted">Atajos: flechas ← → para cambiar de paso. Total aproximado: 4 a 5 minutos. <a id="open-tab" href="/" target="_blank" rel="noopener">Abrir esta vista en una pestaña</a>.</p>
+      </aside>
+
+      <section class="stage" aria-label="Sitio en vivo">
+        <div class="stage-bar small muted"><span id="where"></span></div>
+        <iframe id="frame" title="Sitio Alerta Salud Niño" src="about:blank"></iframe>
+      </section>
+    </div>
+
+    <script define:vars={{ pasos }}>
+      const $ = (s) => document.querySelector(s);
+      const frame = $("#frame");
+      const dots = [...document.querySelectorAll(".dot")];
+      let i = 0, timer = null, focusToken = 0;
+
+      function focusInFrame(sel, token) {
+        // El sitio pinta sus paneles después de cargar los datos: se espera a que el elemento exista.
+        let tries = 0;
+        const tick = () => {
+          if (token !== focusToken) return;
+          try {
+            const el = frame.contentDocument?.querySelector(sel);
+            const ready = el && (el.offsetHeight > 0 || sel === "main");
+            if (ready) {
+              const top = el.getBoundingClientRect().top + frame.contentWindow.scrollY - 90;
+              frame.contentWindow.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+              return;
+            }
+          } catch {}
+          if (++tries < 40) setTimeout(tick, 250);
+        };
+        tick();
+      }
+
+      function show(n, push = true) {
+        i = Math.max(0, Math.min(pasos.length - 1, n));
+        const p = pasos[i];
+        $("#counter").textContent = `Paso ${i + 1} de ${pasos.length}`;
+        $("#mins").textContent = `≈ ${p.min}`;
+        $("#titulo").textContent = p.titulo;
+        $("#decir").textContent = p.decir;
+        $("#mirar").innerHTML = p.mirar.map((m) => `<li>${m.replace(/</g, "&lt;")}</li>`).join("");
+        $("#where").textContent = p.url;
+        $("#open-tab").href = p.url;
+        dots.forEach((d, k) => { d.classList.toggle("on", k === i); d.classList.toggle("done", k < i); d.setAttribute("aria-selected", String(k === i)); });
+        $("#prev").disabled = i === 0;
+        $("#next").innerHTML = i === pasos.length - 1 ? "Volver al inicio" : `Siguiente <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+        const token = ++focusToken;
+        const same = frame.getAttribute("data-url") === p.url;
+        frame.setAttribute("data-url", p.url);
+        if (!same) {
+          frame.onload = () => { if (p.foco) focusInFrame(p.foco, token); };
+          frame.src = p.url;
+        } else if (p.foco) focusInFrame(p.foco, token);
+        if (push) history.replaceState(null, "", `#${i + 1}`);
+        $(".g-body").scrollTop = 0;
+      }
+
+      $("#prev").onclick = () => show(i - 1);
+      $("#next").onclick = () => show(i === pasos.length - 1 ? 0 : i + 1);
+      dots.forEach((d) => (d.onclick = () => show(Number(d.dataset.i))));
+      addEventListener("keydown", (e) => {
+        if (e.target instanceof HTMLElement && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+        if (e.key === "ArrowRight") show(i + 1);
+        if (e.key === "ArrowLeft") show(i - 1);
+      });
+
+      $("#play").onclick = () => {
+        const on = !timer;
+        $("#play").setAttribute("aria-pressed", String(on));
+        $("#play").classList.toggle("on", on);
+        if (on) timer = setInterval(() => (i < pasos.length - 1 ? show(i + 1) : (clearInterval(timer), (timer = null), $("#play").classList.remove("on"), $("#play").setAttribute("aria-pressed", "false"))), 25000);
+        else { clearInterval(timer); timer = null; }
+      };
+
+      $("#theme").onclick = () => {
+        const root = document.documentElement;
+        const dark = (root.dataset.theme ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+        const next = dark ? "light" : "dark";
+        root.dataset.theme = next;
+        try { localStorage.setItem("theme", next); } catch {}
+        try { frame.contentDocument.documentElement.dataset.theme = next; } catch {}
+      };
+
+      const start = Number((location.hash || "#1").slice(1)) - 1;
+      show(Number.isFinite(start) ? start : 0, false);
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  body.demo { margin: 0; height: 100dvh; overflow: hidden; background: var(--bg); }
+  .demo .shell { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; height: 100dvh; }
+  .demo .guide { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); background: var(--surface); }
+  .demo .g-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .demo .g-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); text-decoration: none; }
+  .demo .g-tools { display: flex; gap: 6px; }
+  .demo .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-2); cursor: pointer; }
+  .demo .icon-btn:hover { background: var(--surface-2); }
+  .demo .icon-btn.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .demo .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .demo .progress { display: flex; gap: 6px; padding: 12px 16px 0; }
+  .demo .dot { flex: 1; height: 6px; border: 0; border-radius: 3px; background: var(--surface-3); cursor: pointer; padding: 0; }
+  .demo .dot.done { background: color-mix(in srgb, var(--brand) 45%, var(--surface-3)); }
+  .demo .dot.on { background: var(--brand); }
+  .demo .g-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; }
+  .demo .g-body h1 { font-size: 1.45rem; margin: 2px 0 14px; letter-spacing: -0.01em; }
+  .demo .g-h { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 14px 0 4px; }
+  .demo .g-body p { margin: 0; line-height: 1.5; }
+  .demo .g-body ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; }
+  .demo .g-nav { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+  .demo .g-nav .btn { flex: 1; justify-content: center; }
+  .demo #prev svg { transform: rotate(180deg); }
+  .demo .g-nav .btn:disabled { opacity: 0.45; cursor: default; }
+  .demo .g-help { padding: 0 16px 14px; margin: 0; }
+  .demo .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
+  .demo .stage-bar { padding: 6px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-family: ui-monospace, monospace; }
+  .demo iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+  .demo .ico-moon { display: none; }
+  :root[data-theme="dark"] .demo .ico-sun { display: none; }
+  :root[data-theme="dark"] .demo .ico-moon { display: inline; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .demo .ico-sun { display: none; }
+    :root:not([data-theme="light"]) .demo .ico-moon { display: inline; }
+  }
+  @media (max-width: 860px) {
+    .demo .shell { grid-template-columns: 1fr; grid-template-rows: minmax(0, 46%) minmax(0, 1fr); }
+    .demo .guide { border-right: 0; border-bottom: 1px solid var(--border); }
+    .demo .g-help, .demo .stage-bar { display: none; }
+  }
+</style>
