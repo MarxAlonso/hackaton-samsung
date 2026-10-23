@@ -1,0 +1,22 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { icon } from "../lib/icons";
+---
+
+<Layout title="Sin conexión">
+  <section class="card offline">
+    <span class="ico-box brand"><Fragment set:html={icon("wave", 24)} /></span>
+    <h1>Sin conexión</h1>
+    <p class="muted">No pudimos conectar con el servidor. Las páginas que ya abriste siguen disponibles con los últimos datos guardados.</p>
+    <div class="actions-row">
+      <a class="btn primary" href="/ciudadano/">Ver mi distrito</a>
+      <a class="btn" href="/autoridad/">Panel de autoridad</a>
+      <button class="btn" type="button" onclick="location.reload()">Reintentar</button>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .offline { max-width: 560px; margin: 40px auto; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>

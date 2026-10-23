@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "Alerta Salud Niño",
+  "short_name": "Salud Niño",
+  "description": "Alertas tempranas de dengue y lluvias extremas por El Niño en Tumbes, Piura y Lambayeque.",
+  "lang": "es-PE",
+  "dir": "ltr",
+  "start_url": "/ciudadano/?origen=app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f4f0",
+  "theme_color": "#1c5cab",
+  "categories": ["health", "weather"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Mi distrito", "short_name": "Mi distrito", "url": "/ciudadano/?origen=atajo", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Panel de autoridad", "short_name": "Autoridad", "url": "/autoridad/?origen=atajo", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Plan de acción", "short_name": "Plan", "url": "/plan/?origen=atajo", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

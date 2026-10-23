@@ -277,3 +277,36 @@ input[type="range"] { width: 100%; accent-color: var(--brand); }
 .leaflet-tooltip { background: var(--surface); color: var(--text); border-color: var(--border); border-radius: 8px; box-shadow: var(--shadow); }
 .leaflet-tooltip-top::before { border-top-color: var(--border); }
 .leaflet-bar a { background: var(--surface); color: var(--text); border-bottom-color: var(--border); }
+
+/* Instalar app y alertas */
+.install-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--brand); background: var(--brand-soft);
+  color: var(--brand); padding: 7px 12px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 0.9rem; margin-left: 4px;
+}
+.install-btn:hover { background: var(--brand); color: #fff; }
+.install-btn[hidden] { display: none; }
+.install-dialog {
+  border: 1px solid var(--border); border-radius: 16px; padding: 22px; max-width: 460px; width: calc(100% - 32px);
+  background: var(--surface); color: var(--text); box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+}
+.install-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+.install-dialog h2 { font-size: 1.15rem; }
+.install-dialog h3 { font-size: 0.95rem; margin: 14px 0 4px; }
+.install-dialog ol { margin: 4px 0 0; padding-left: 20px; }
+.install-dialog .btn { margin-top: 16px; }
+.alerts-card { margin-top: 24px; }
+.alerts-card .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.alerts-status { display: flex; gap: 8px; align-items: flex-start; font-size: 0.92rem; margin-top: 8px; }
+.alerts-status svg { flex-shrink: 0; margin-top: 2px; color: var(--brand); }
+@media (max-width: 560px) { .install-btn span { display: none; } .install-btn { padding: 8px; } }
+
+/* Barra superior compacta en el celular: solo iconos (y el nombre de la sección activa) */
+@media (max-width: 640px) {
+  .topbar { padding: 8px 12px; gap: 8px; }
+  .topbar nav { gap: 2px; flex-wrap: nowrap; }
+  .topbar nav a { padding: 8px 10px; }
+  .topbar nav a span { display: none; }
+  .topbar nav a.active span { display: inline; }
+  .brand span { font-size: 1rem; }
+}
+@media (max-width: 400px) { .brand span { display: none; } }

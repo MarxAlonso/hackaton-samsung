@@ -25,3 +25,6 @@ pdf-clases/
 # Material personal y del curso: no va al repositorio público
 pdf-clases/
 sesion.md
+
+# Claves privadas de las alertas push
+ml/.vapid/

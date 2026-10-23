@@ -33,6 +33,8 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
     </div>
     <div id="risks" class="risks"></div>
 
+    <div id="alerts-card" class="card alerts-card"></div>
+
     <div class="card chat">
       <h2 class="inline-ico"><Fragment set:html={icon("sparkles", 20)} /> Pregúntale a la IA</h2>
       <p class="muted small">Responde dudas de prevención. No da diagnósticos: si tienes síntomas, acude a tu centro de salud.</p>
@@ -55,6 +57,7 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
   import { loadData, NIVEL_LABEL, fmt, weekLabel, type AppData, type DiseaseKey } from "../lib/data";
   import { icon } from "../lib/icons";
   import { explain, citizenFallback } from "../lib/explain";
+  import { alertState, disableAlerts, enableAlerts, isIOS, isStandalone, pushSupported, showSampleNotification } from "../lib/pwa";
 
   const select = document.querySelector<HTMLSelectElement>("#district")!;
   const result = document.querySelector<HTMLElement>("#result")!;
@@ -123,10 +126,54 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
         </article>`;
       })
       .join("");
+    renderAlerts(id);
     result.hidden = false;
     document.querySelector<HTMLElement>("#answer")!.hidden = true;
     document.querySelector<HTMLAnchorElement>("#pdf")!.href = `/reporte?d=${id}&para=ciudadano`;
     history.replaceState(null, "", `?d=${id}`);
+  }
+
+  async function renderAlerts(id: string) {
+    const card = document.querySelector<HTMLElement>("#alerts-card")!;
+    const name = app.distritos.find((x) => x.district_id === id)!.district;
+    const st = await alertState();
+    let body = "";
+    const status = (ico: string, text: string) => `<p class="alerts-status" aria-live="polite">${icon(ico, 18)}<span>${text}</span></p>`;
+    if (!st.soportado) {
+      body = isIOS() && !isStandalone()
+        ? status("share", "En iPhone las alertas funcionan con la app instalada: toca <strong>Compartir</strong> → <strong>Agregar a inicio</strong>, abre la app desde tu pantalla de inicio y vuelve aquí.")
+        : status("info", "Este navegador no admite alertas. Prueba con Chrome, Edge, Firefox o Samsung Internet.");
+    } else if (st.permiso === "denied") {
+      body = status("bellOff", "Bloqueaste las notificaciones de este sitio. Actívalas desde la configuración del navegador (el candado junto a la dirección) y vuelve a intentarlo.");
+    } else if (st.activa && st.distrito === id) {
+      body = status("checkCircle", `Alertas activas para <strong>${name}</strong>. Te avisaremos cuando el riesgo suba a medio o alto.`) +
+        `<div class="row"><button class="btn" id="alert-test" type="button">${icon("bell", 18)} Ver cómo se verá</button><button class="btn" id="alert-off" type="button">${icon("bellOff", 18)} Desactivar</button></div>`;
+    } else if (st.activa) {
+      const other = app.distritos.find((x) => x.district_id === st.distrito)?.district ?? "otro distrito";
+      body = status("bell", `Tus alertas están activas para <strong>${other}</strong>.`) +
+        `<div class="row"><button class="btn primary" id="alert-on" type="button">${icon("bell", 18)} Cambiar a ${name}</button><button class="btn" id="alert-off" type="button">${icon("bellOff", 18)} Desactivar</button></div>`;
+    } else {
+      body = `<div class="row"><button class="btn primary" id="alert-on" type="button">${icon("bell", 18)} Activar alertas de ${name}</button><button class="btn" id="alert-test" type="button">${icon("smartphone", 18)} Ver cómo se verá</button></div>`;
+    }
+    card.innerHTML = `<h2 class="inline-ico">${icon("bell", 20)} Recibe alertas de tu distrito</h2>
+      <p class="muted small">Te avisamos en el celular cuando el riesgo de dengue o de lluvias extremas suba en <strong>${name}</strong>. Solo guardamos tu distrito y la dirección técnica de tu navegador: no pedimos nombre, teléfono ni ubicación. Puedes desactivarlas cuando quieras.</p>${body}`;
+
+    const msg = (ico: string, text: string) => { card.querySelector(".alerts-status")?.remove(); card.querySelector("p.muted")!.insertAdjacentHTML("afterend", status(ico, text)); };
+    card.querySelector("#alert-on")?.addEventListener("click", async (ev) => {
+      const btn = ev.currentTarget as HTMLButtonElement;
+      btn.disabled = true;
+      const r = await enableAlerts(id);
+      if (!r.ok && r.motivo === "denegado") msg("bellOff", "No diste permiso para las notificaciones. Si cambias de idea, actívalas desde la configuración del navegador.");
+      else if (!r.ok) msg("info", r.motivo ?? "No se pudieron activar las alertas.");
+      else await renderAlerts(id);
+      btn.disabled = false;
+    });
+    card.querySelector("#alert-off")?.addEventListener("click", async () => { await disableAlerts(); await renderAlerts(id); });
+    card.querySelector("#alert-test")?.addEventListener("click", async () => {
+      if (!pushSupported()) return msg("info", "Este navegador no puede mostrar notificaciones.");
+      if (Notification.permission !== "granted" && (await Notification.requestPermission()) !== "granted") return msg("bellOff", "Para ver el ejemplo, permite las notificaciones.");
+      await showSampleNotification(name);
+    });
   }
 
   async function ask(question: string) {

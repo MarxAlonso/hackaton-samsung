@@ -8,7 +8,7 @@ Hackathon ISIL 2026 · Sitio publicado: https://alerta-salud-nino.marxchip99.wor
 |---|---|
 | **Autoridad de salud** (DIRESA, jefe de establecimiento) | Distritos priorizados por probabilidad de brote, casos esperados con rango, recursos sugeridos, mapa de dengue y de lluvias extremas, mapa de calor, comparación de temporadas y distritos, simulador "¿y si llueve como en 2023?", lectura de cada gráfico con IA e informe PDF. |
 | **Plan de acción** (gestión) | Con N brigadas disponibles, ¿en qué distritos evitan más casos? Compara el reparto óptimo con repartir parejo o por probabilidad, con rango de incertidumbre y supuestos editables (efectividad, capacidad, costos). |
-| **Ciudadano** | Semáforo de su distrito (considera enfermedades y lluvias extremas), sus riesgos principales, acciones simples, señales de alarma, asistente de prevención con IA e informe PDF. |
+| **Ciudadano** | Semáforo de su distrito (considera enfermedades y lluvias extremas), sus riesgos principales, acciones simples, señales de alarma, asistente de prevención con IA e informe PDF. Puede **instalar la app en el celular**, usarla **sin internet** con los últimos datos y **activar alertas** de su distrito. |
 
 ## Arquitectura
 
@@ -21,11 +21,14 @@ ml/ (Python: solo entrena y exporta)
   monitor.py   → deriva de datos (PSI), desempeño por trimestre, decisión de reentrenar
   retrain.py   → campeón vs retador sobre semanas que ninguno vio; promueve solo si mejora
   hazards.py   → índice de lluvias extremas (percentiles históricos de cada distrito)
+  notify.py    → envía las alertas push a quienes las activaron (Web Push cifrado, firma VAPID)
   export.py    → web/public/data/*.json + modelos .onnx + api/models/
 
 web/ (Astro 7 en Cloudflare Workers)
   /            inicio · /ciudadano · /autoridad · /plan · /modelo · /reporte (PDF)
   /api/explicar  Workers AI (Llama 3.3 70B): explica distritos, gráficos, plan e informe; texto de respaldo si falla
+  /api/alertas   guarda/borra suscripciones a alertas (Cloudflare KV): solo distrito + dirección técnica del navegador
+  /sw.js         service worker: uso sin conexión + recepción de alertas · /manifest.webmanifest: app instalable
 
 api/ (FastAPI + Docker)
   GET /health · /distritos · /metricas · /monitoreo   POST /predict · /predict/batch · /optimize
@@ -59,7 +62,7 @@ cd ml
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Linux/Mac: .venv/bin/python
 bash run_pipeline.sh          # ingesta → simulación → entrenamiento → monitoreo → reentrenamiento → exportación
-python -m pytest tests -q     # 12 pruebas del pipeline
+python -m pytest tests -q     # 19 pruebas del pipeline y de las alertas
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # experimentos (también en reports/experiments.jsonl)
 ```
 
@@ -90,9 +93,20 @@ curl -X POST localhost:8000/predict  -H "content-type: application/json" -d '{"d
 curl -X POST localhost:8000/optimize -H "content-type: application/json" -d '{"escenario":"2023","brigadas":20,"efectividad":0.3,"costo_brigada":10000,"costo_caso":800}'
 ```
 
-### 4. Reentrenamiento semanal automático
+### 4. App instalable y alertas en el celular
 
-`.github/workflows/retrain.yml` corre cada lunes: ingesta incremental, simulación, entrenamiento, monitoreo, campeón vs retador, tests y, solo si todo pasa, publica el sitio. Necesita los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` en el repositorio. También se lanza a mano desde la pestaña Actions.
+El sitio es una **PWA**: en Android (Chrome, Edge o Samsung Internet) aparece el botón **Instalar app** en la barra superior; en iPhone el botón muestra los pasos (Compartir → Agregar a inicio). Instalada, abre a pantalla completa y **funciona sin internet** con los últimos datos guardados (probado apagando el servidor).
+
+Las alertas usan **Web Push estándar** (no dependen de ninguna marca): en la vista del ciudadano se elige el distrito y se pulsa *Activar alertas*. Cada lunes, tras publicar, `ml/src/notify.py` avisa solo si el riesgo del distrito es **alto** (cada semana), **medio** (cuando sube) o **bajó** (una vez). En iPhone las alertas requieren la app instalada (iOS 16.4 o superior).
+
+- **Privacidad:** solo se guarda el distrito y la dirección técnica del navegador; nada de nombre, teléfono ni ubicación. Se puede desactivar en cualquier momento.
+- **Seguridad:** la API solo acepta direcciones de servicios de push conocidos (Google, Mozilla, Microsoft, Apple); el mensaje viaja cifrado y firmado (VAPID).
+- **Claves:** la pública está en `web/src/lib/pwa.ts`. La **privada** se guarda como secreto `VAPID_PRIVATE_KEY` de GitHub y nunca en el repositorio. Para generar otro par: `python -c "from py_vapid import Vapid01; ..."` (ver `ml/tests/test_notify.py`); si se cambia, hay que actualizar ambas y las suscripciones previas dejan de funcionar.
+- **Prueba local:** `python ml/src/notify.py --dry-run --store-file subs.json` muestra qué se enviaría sin enviar nada.
+
+### 5. Reentrenamiento semanal automático
+
+`.github/workflows/retrain.yml` corre cada lunes: ingesta incremental, simulación, entrenamiento, monitoreo, campeón vs retador, tests y, solo si todo pasa, publica el sitio y envía las alertas. Necesita los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` (y `VAPID_PRIVATE_KEY` para las alertas) en el repositorio. También se lanza a mano desde la pestaña Actions.
 
 ## Datos: qué es real y qué es simulado
 

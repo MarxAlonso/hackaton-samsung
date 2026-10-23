@@ -24,6 +24,14 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1c5cab" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a19" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Salud Niño" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>{title} · Alerta Salud Niño</title>
     <script is:inline>
       // Aplica el tema guardado antes de pintar, para evitar el parpadeo
@@ -46,11 +54,14 @@ const nav = [
       </a>
       <nav aria-label="Principal">
         {nav.map((item) => (
-          <a href={item.href} class:list={[{ active: active === item.key }]} aria-current={active === item.key ? "page" : undefined}>
+          <a href={item.href} class:list={[{ active: active === item.key }]} aria-current={active === item.key ? "page" : undefined} aria-label={item.label} title={item.label}>
             <Fragment set:html={icon(item.icon, 18)} />
             <span>{item.label}</span>
           </a>
         ))}
+        <button type="button" id="install-btn" class="install-btn" hidden title="Instalar la app en tu celular">
+          <Fragment set:html={icon("smartphone", 18)} /><span>Instalar app</span>
+        </button>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">
           <span class="ico-sun"><Fragment set:html={icon("sun", 18)} /></span>
           <span class="ico-moon"><Fragment set:html={icon("moon", 18)} /></span>
@@ -60,6 +71,28 @@ const nav = [
     <main class:list={[{ wide }]}>
       <slot />
     </main>
+    <dialog id="install-dialog" class="install-dialog" aria-labelledby="install-title">
+      <form method="dialog">
+        <h2 id="install-title" class="inline-ico"><Fragment set:html={icon("smartphone", 22)} /> Instala la app en tu celular</h2>
+        <p class="muted small">Se abre como una app, muestra los últimos datos aunque no tengas internet y puede avisarte cuando suba el riesgo en tu distrito.</p>
+        <section>
+          <h3 class="inline-ico"><Fragment set:html={icon("share", 18)} /> iPhone (Safari)</h3>
+          <ol class="small">
+            <li>Toca el botón <strong>Compartir</strong>, el cuadrado con una flecha hacia arriba.</li>
+            <li>Elige <strong>Agregar a inicio</strong>.</li>
+            <li>Abre la app desde tu pantalla de inicio.</li>
+          </ol>
+        </section>
+        <section>
+          <h3 class="inline-ico"><Fragment set:html={icon("smartphone", 18)} /> Android (Chrome o Samsung Internet)</h3>
+          <ol class="small">
+            <li>Abre el menú del navegador (los tres puntos).</li>
+            <li>Elige <strong>Instalar app</strong> o <strong>Agregar a pantalla de inicio</strong>.</li>
+          </ol>
+        </section>
+        <button class="btn primary" value="ok">Entendido</button>
+      </form>
+    </dialog>
     <button type="button" class="to-top" id="to-top" aria-label="Volver arriba" title="Volver arriba"><Fragment set:html={icon("arrowRight", 20)} /></button>
     <footer class="footer">
       <p>
@@ -68,6 +101,9 @@ const nav = [
       </p>
     </footer>
     <script>
+      import { initPwa } from "../lib/pwa";
+      initPwa();
+
       const toTop = document.getElementById("to-top")!;
       const progress = document.querySelector<HTMLElement>(".scroll-progress")!;
       const onScroll = () => {

@@ -13,6 +13,8 @@
 		"binding": "AI",
 		"remote": true
 	},
+	// Suscripciones a alertas push (solo distrito + dirección técnica del navegador)
+	"kv_namespaces": [{ "binding": "ALERTAS" }],
 	"observability": {
 		"enabled": true
 	}
