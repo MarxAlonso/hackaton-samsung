@@ -68,3 +68,15 @@ def test_monitoreo():
     r = client.get("/monitoreo").json()
     assert r["monitoreo"]["estado"] in {"estable", "vigilar", "reentrenar"}
     assert r["reentrenamiento"]["decision"] in {"promovido", "se mantiene el campeón"}
+
+
+def test_la_api_aplica_el_factor_de_intensidad_igual_que_el_sitio():
+    """El replay 2023 usa el modelo con casos y su factor: la API debe dar los mismos casos que publica app.json."""
+    import json
+    from pathlib import Path
+    app = json.loads((Path(__file__).resolve().parents[1] / "models" / "app.json").read_text(encoding="utf-8"))
+    snap = app["escenarios"]["2023"]["distritos"]
+    d = next(x for x in snap if x["modelo_tipo"] == "casos")
+    assert d["factor_intensidad"] != 1.0
+    r = client.post("/predict", json={"district_id": d["district_id"], "escenario": "2023"}).json()
+    assert abs(r["riesgos"]["dengue"]["casos_p50"] - d["riesgos"]["dengue"]["casos_p50"]) <= 1

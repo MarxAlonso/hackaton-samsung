@@ -1,4 +1,4 @@
-"""Casos reales del CDC-MINSA: semanas epidemiológicas, año provisional, valores desconocidos y descarga.
+"""Casos reales del CDC-MINSA: semanas epidemiológicas, cobertura del último año, valores desconocidos y descarga.
 Estas pruebas usan archivos pequeños creados al vuelo: no necesitan bajar los 400 MB."""
 import json
 
@@ -48,7 +48,7 @@ def archivos(tmp_path):
                     + ["PIURA,PIURA,CASTILLA,X,DENGUE SIN SIGNOS DE ALARMA,2024,10,A97,P,20,200104,,30,A,M"]
                     + ["PIURA,PIURA,CASTILLA,X,DENGUE SIN SIGNOS DE ALARMA,2024,11,A97,C,20,200104,,30,A,F"]
                     + ["TUMBES,TUMBES,TUMBES,X,DENGUE SIN SIGNOS DE ALARMA,2024,52,A97,C,24,240101,,30,A,F"]
-                    + ["PIURA,PIURA,CASTILLA,X,DENGUE SIN SIGNOS DE ALARMA,2025,3,A97,C,20,200104,,30,A,F"]  # año provisional: se descarta
+                    + ["PIURA,PIURA,CASTILLA,X,DENGUE SIN SIGNOS DE ALARMA,2025,3,A97,C,20,200104,,30,A,F"]  # semana 3 de 2025: la última del archivo está incompleta y no se usa
                     + ["LIMA,LIMA,LIMA,X,DENGUE SIN SIGNOS DE ALARMA,2024,10,A97,C,15,150101,,30,A,F"]) + "\n",  # fuera del piloto
         encoding="utf-8")
     (tmp_path / "zoonosis.csv").write_text(
@@ -85,15 +85,15 @@ def test_construccion_semanal(archivos):
     assert cast.loc[w10, "leptospirosis"] == 1              # el ofidismo no cuenta
     # una semana sin filas dentro del periodo cubierto es CERO...
     assert cast.loc[real_cases.epi_week_monday(2024, 20)[0], "dengue"] == 0
-    # ...y después del último dato (2024 semana 52; 2025 es provisional y se descarta) es DESCONOCIDA
+    # ...y después de la cobertura (2025, SE 2: la SE 3 es la última del archivo y está incompleta) es DESCONOCIDA
     fin = real_cases.epi_week_monday(2024, 52)[0]
-    assert cast.loc[fin, "dengue"] == 0 and cast.loc[fin + pd.Timedelta(weeks=1), "dengue"] != cast.loc[fin + pd.Timedelta(weeks=1), "dengue"]
-    assert cast.loc[real_cases.epi_week_monday(2025, 3)[0], ["dengue", "eda", "ira", "leptospirosis"]].isna().all()
+    assert cast.loc[fin, "dengue"] == 0 and cast.loc[real_cases.epi_week_monday(2025, 2)[0], "dengue"] == 0
+    assert pd.isna(cast.loc[real_cases.epi_week_monday(2025, 3)[0], "dengue"])
     tum = table[table.district_id == "tum-tumbes"].set_index("week")
     assert tum.loc[fin, "dengue"] == 1
     # lo que no es del piloto no entra
     assert table.dengue.sum() == 4 + 1 + 1
-    assert cov["dengue"]["hasta"] == str(fin.date()) and cov["dengue"]["anio_provisional_descartado"] == 2025
+    assert cov["dengue"]["hasta"] == str(real_cases.epi_week_monday(2025, 2)[0].date()) and cov["dengue"]["ultima_semana_epidemiologica"] == "2025-SE2"
 
 
 def test_regional_de_piura_queda_aparte_y_sin_semana_incompleta(archivos):
@@ -109,16 +109,27 @@ def test_regional_de_piura_queda_aparte_y_sin_semana_incompleta(archivos):
     assert table[table.district_id == "tum-tumbes"].dengue_gore.isna().all()  # solo existe para Piura
 
 
-def test_cuando_el_archivo_incluye_un_anio_nuevo_el_anterior_pasa_a_usarse(archivos):
-    """Sin cambiar código: el año provisional es siempre el último del archivo."""
+def test_cuando_el_archivo_incluye_un_anio_nuevo_el_anterior_sigue_usandose(archivos):
+    """El año anterior no se descarta: solo la última semana del año en curso queda fuera por incompleta."""
     p = archivos / "dengue.csv"
     p.write_text(p.read_text(encoding="utf-8") + "PIURA,PIURA,CASTILLA,X,DENGUE SIN SIGNOS DE ALARMA,2026,2,A97,C,20,200104,,30,A,F\n", encoding="utf-8")
     weeks = pd.date_range("2023-12-04", "2026-07-06", freq="W-MON")
     table, cov = real_cases.build(weeks, directory=archivos)
     cast = table[table.district_id == "piu-castilla"].set_index("week")
-    assert cov["dengue"]["anio_provisional_descartado"] == 2026
-    assert cast.loc[real_cases.epi_week_monday(2025, 3)[0], "dengue"] == 1   # 2025 ya cuenta
+    assert cov["dengue"]["ultima_semana_epidemiologica"] == "2026-SE1"
+    assert cast.loc[real_cases.epi_week_monday(2025, 3)[0], "dengue"] == 1   # 2025 cuenta entero
     assert pd.isna(cast.loc[real_cases.epi_week_monday(2026, 2)[0], "dengue"])
+
+
+def test_un_anio_cerrado_se_usa_hasta_su_ultima_semana(archivos):
+    p = archivos / "dengue.csv"
+    p.write_text(p.read_text(encoding="utf-8") + "PIURA,PIURA,CASTILLA,X,DENGUE SIN SIGNOS DE ALARMA,2025,53,A97,C,20,200104,,30,A,F\n", encoding="utf-8")
+    weeks = pd.date_range("2025-12-01", "2026-02-02", freq="W-MON")
+    table, cov = real_cases.build(weeks, directory=archivos)
+    cast = table[table.district_id == "piu-castilla"].set_index("week")
+    assert cov["dengue"]["ultima_semana_epidemiologica"] == "2025-SE53"
+    assert cast.loc[real_cases.epi_week_monday(2025, 53)[0], "dengue"] == 1   # la SE 53 de un año cerrado cuenta
+    assert cast.loc[real_cases.epi_week_monday(2025, 52)[0], "dengue"] == 0
 
 
 # ---------- descarga ----------

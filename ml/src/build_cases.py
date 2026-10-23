@@ -24,10 +24,10 @@ def main():
 
     print("Casos REALES del CDC-MINSA en los 47 distritos del piloto (por año):")
     y = table.assign(anio=table.week.dt.year).groupby("anio")[["dengue", "leptospirosis", "eda", "ira"]].sum(min_count=1)
-    print(y.loc[2015:2025].map(lambda v: "sin dato" if pd.isna(v) else f"{int(v):,}").to_string())
+    print(y.loc[2015:2026].map(lambda v: "sin dato" if pd.isna(v) else f"{int(v):,}").to_string())
     print()
     for name, c in coverage.items():
-        extra = f" (año provisional {c['anio_provisional_descartado']} descartado)" if c.get("anio_provisional_descartado") else ""
+        extra = f" ({c['ultima_semana_epidemiologica']})" if c.get("ultima_semana_epidemiologica") else ""
         print(f"  {name:18s} datos hasta {c['hasta']}{extra}")
 
 

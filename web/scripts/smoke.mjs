@@ -75,6 +75,34 @@ await check("probabilidades dentro de [0, 1] y rangos ordenados", async () => {
   }
 });
 
+await check("factor de intensidad válido en los replays y neutro hoy", async () => {
+  for (const [k, esc] of Object.entries(app.escenarios)) {
+    for (const d of esc.distritos) {
+      must(Number.isFinite(d.factor_intensidad) && d.factor_intensidad >= 0.5 && d.factor_intensidad <= 2, `${k}/${d.district_id}: factor ${d.factor_intensidad}`);
+      if (d.modelo_tipo === "clima") must(d.factor_intensidad === 1, "el modelo solo clima no se calibra");
+    }
+  }
+  must(app.contexto_oficial_2026?.dengue_departamentos?.departamentos?.Piura?.casos_2026 > 0, "falta el contexto oficial 2026");
+  must(app.metricas.dengue.intervalos_95?.auc?.length === 2, "faltan los intervalos de confianza");
+});
+
+await check("establecimientos de Piura", async () => {
+  const r = await get("/data/establecimientos.json");
+  must(r.ok, `HTTP ${r.status}`);
+  const e = await r.json();
+  const n = Object.keys(e.distritos).length;
+  must(n >= 10 && Object.keys(e.distritos).every((id) => id.startsWith("piu-")), "distritos inesperados");
+  return `${n} distritos`;
+});
+
+await check("reportes ciudadanos: GET responde y marca la señal como sin verificar", async () => {
+  const r = await get("/api/reportes");
+  must(r.ok, `HTTP ${r.status}`);
+  must((await r.json()).sin_verificar === true, "falta el rótulo sin_verificar");
+  const bad = await fetch(BASE + "/api/reportes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ distrito: "x", tipo: "otro" }) });
+  must(bad.status === 400, `un reporte inválido debe dar 400 y dio ${bad.status}`);
+});
+
 await check("series.json válido", async () => {
   const r = await get("/data/series.json");
   must(r.ok, `HTTP ${r.status}`);

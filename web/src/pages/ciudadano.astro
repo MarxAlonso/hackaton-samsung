@@ -26,6 +26,10 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
 
   <section id="result" hidden aria-live="polite">
     <div id="light" class="light card"></div>
+    <div class="a11y-row no-print">
+      <button type="button" class="btn" id="speak"><span class="ic"></span><span class="lbl">Escuchar este aviso</span></button>
+      <span class="small muted">Lectura en voz alta del semáforo y de lo que debes hacer. Con el botón de las dos letras (arriba) agrandas el texto.</span>
+    </div>
     <div id="flood-card"></div>
     <div class="section-row">
       <h2 class="section-title">Tus 3 riesgos principales y qué hacer</h2>
@@ -34,6 +38,8 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
     <div id="risks" class="risks"></div>
 
     <div id="alerts-card" class="card alerts-card"></div>
+
+    <div id="report-card" class="card report-card no-print"></div>
 
     <div class="card chat">
       <h2 class="inline-ico"><Fragment set:html={icon("sparkles", 20)} /> Pregúntale a la IA</h2>
@@ -69,6 +75,69 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
     medio: { title: "Riesgo medio", text: "Mantente atento y previene.", icon: "alertTriangle" },
     bajo: { title: "Riesgo bajo", text: "Sigue con la prevención de siempre.", icon: "checkCircle" },
   };
+
+  // ---- Lectura en voz alta ----
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+  const speakBtn = document.querySelector<HTMLButtonElement>("#speak")!;
+  let spoken = "";
+  const plain = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const setSpeakUi = (on: boolean) => {
+    speakBtn.querySelector(".ic")!.innerHTML = icon(on ? "stop" : "volume", 18);
+    speakBtn.querySelector(".lbl")!.textContent = on ? "Detener lectura" : "Escuchar este aviso";
+  };
+  setSpeakUi(false);
+  if (!synth) speakBtn.closest<HTMLElement>(".a11y-row")!.hidden = true;
+  speakBtn.addEventListener("click", () => {
+    if (!synth) return;
+    if (synth.speaking) { synth.cancel(); setSpeakUi(false); return; }
+    const u = new SpeechSynthesisUtterance(spoken);
+    const voices = synth.getVoices();
+    const voice = voices.find((v) => /^es[-_](PE|MX|CO|AR|US|419)/i.test(v.lang)) ?? voices.find((v) => /^es/i.test(v.lang));
+    u.lang = voice?.lang ?? "es-PE"; if (voice) u.voice = voice;
+    u.rate = 0.95;
+    u.onend = u.onerror = () => setSpeakUi(false);
+    synth.speak(u); setSpeakUi(true);
+  });
+  addEventListener("pagehide", () => synth?.cancel());
+
+  function prepareSpeech(name: string, h: { title: string; text: string }, lvl: string, main: string, fl: any, p: any, info: any) {
+    synth?.cancel(); setSpeakUi(false);
+    const first = p.top_riesgos[0] as DiseaseKey;
+    const acts = (app.contenido.ciudadano[first] as string[]).slice(0, 3).map(plain);
+    const flood = fl.nivel === "bajo" ? "" : `Atención: se esperan lluvias ${fl.nivel === "alto" ? "extremas" : "intensas"} en tu distrito. `;
+    spoken = plain(`${name}. ${h.title} en las próximas 4 semanas. ${h.text} ${lvl === "bajo" ? "" : `Lo que más debes vigilar: ${main}. `}${flood}` +
+      `Qué hacer: ${acts.join(". ")}. Si tienes ${plain(info[first].senal_alarma).toLowerCase()}, acude a tu centro de salud. No te automediques.`);
+  }
+
+  // ---- Reporte ciudadano anónimo ----
+  function renderReport(id: string) {
+    const card = document.querySelector<HTMLElement>("#report-card")!;
+    card.innerHTML = `
+      <h2 class="inline-ico">${icon("users", 20)} Ayuda a tu comunidad</h2>
+      <p class="muted small">Avisa de forma anónima a la autoridad de salud de tu distrito. Solo se suma un conteo: sin nombre, sin ubicación y sin texto. Es una señal sin verificar y no reemplaza ir al centro de salud.</p>
+      <div class="row">
+        <button type="button" class="btn" data-tipo="criaderos">${icon("droplet", 18)} Veo criaderos de zancudos en mi zona</button>
+        <button type="button" class="btn" data-tipo="fiebre">${icon("thermometer", 18)} Hay personas con fiebre en mi zona</button>
+      </div>
+      <p id="report-msg" class="small" aria-live="polite"></p>`;
+    const msg = card.querySelector<HTMLElement>("#report-msg")!;
+    card.querySelectorAll<HTMLButtonElement>("button[data-tipo]").forEach((b) => b.addEventListener("click", async () => {
+      const tipo = b.dataset.tipo!;
+      const key = `rep:${id}:${tipo}`;
+      try {
+        const last = Number(localStorage.getItem(key) ?? 0);
+        if (Date.now() - last < 24 * 3600 * 1000) { msg.textContent = "Ya enviaste este aviso hoy. Gracias por ayudar."; return; }
+      } catch {}
+      b.disabled = true; msg.textContent = "Enviando…";
+      try {
+        const r = await fetch("/api/reportes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ distrito: id, tipo }) });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) { try { localStorage.setItem(key, String(Date.now())); } catch {} msg.textContent = "Gracias. Tu aviso quedó registrado de forma anónima."; }
+        else msg.textContent = j.error ?? "No se pudo enviar. Inténtalo más tarde.";
+      } catch { msg.textContent = "Sin conexión: no se pudo enviar. Inténtalo cuando tengas internet."; }
+      b.disabled = false;
+    }));
+  }
 
   function render(id: string) {
     current = id;
@@ -128,6 +197,8 @@ const byDept = Object.groupBy(app.distritos, (d) => d.department);
       })
       .join("");
     renderAlerts(id);
+    renderReport(id);
+    prepareSpeech(d.district, h, lvl, main, fl, p, info);
     result.hidden = false;
     document.querySelector<HTMLElement>("#answer")!.hidden = true;
     document.querySelector<HTMLAnchorElement>("#pdf")!.href = `/reporte?d=${id}&para=ciudadano`;

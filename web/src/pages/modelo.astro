@@ -8,6 +8,10 @@ const A: any = m.dengue;          // modelo con casos recientes
 const C: any = m.dengue_clima;    // modelo solo clima (el de hoy)
 const datos: any = (app as any).datos;
 const pc = (v: number) => `${Math.round(v * 100)}%`;
+const ic = (m: any, key: string, percent = false) => {
+  const r = m.intervalos_95?.[key];
+  return r ? `IC 95%: ${r.map((v: number) => (percent ? pc(v) : v)).join(" a ")}` : "";
+};
 const NAMES: Record<string, string> = {
   rain_0_1: "Lluvia de las últimas 2 semanas",
   rain_2_6: "Lluvia de hace 2 a 6 semanas",
@@ -73,6 +77,11 @@ const FUENTES = [
 const otras: Record<string, any> = m.otras_enfermedades, otrasClima: Record<string, any> = m.otras_enfermedades_clima;
 const lastQ = mon.ultimo_trimestre_con_casos;
 const nuevo = A.subconjuntos.anticipacion_brote_nuevo;
+const cal = A.calibracion_intensidad;
+const sesgoC = C.razon_observado_previsto_por_anio;
+const val: any = (app as any).validacion_externa_2026;
+const yr = (y: number) => A.evaluacion_progresiva.find((r: any) => r.anio === y);
+const texto2023 = `2023 fue una epidemia enorme: el ${pc(yr(2023).tasa_brote)} de las semanas-distrito estuvo en brote, contra ~15% en los años de entrenamiento. Con casos recientes el modelo la sigue bien (su error de probabilidades es ${(yr(2023).brier_sin_informacion / yr(2023).brier).toFixed(1)} veces menor que "sin información"). 2025 fue lo contrario, un año bajo (${pc(yr(2025).tasa_brote)} en brote): el modelo ordena igual de bien, pero casi no había brotes que anticipar y su ventaja es menor. Solo con clima casi no mejora el error, pero sí ordena los distritos por riesgo.`;
 const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 ---
 
@@ -91,7 +100,7 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <h2 class="chart-title"><Fragment set:html={icon("activity", 20)} /> Con casos recientes</h2>
       <p class="small muted">El modelo completo, cuando los casos están al día. Se usa en los replays de 2017 y 2023 y se usará hoy apenas lleguen datos de 2026.</p>
       <div class="tiles">
-        <div class="tile"><span class="eyebrow">Detecta brotes (AUC)</span><strong>{A.modelo.auc}</strong><span class="small muted">{A.linea_base_nombre}: {A.linea_base.auc}</span></div>
+        <div class="tile"><span class="eyebrow">Detecta brotes (AUC)</span><strong>{A.modelo.auc}</strong><span class="small muted">{A.linea_base_nombre}: {A.linea_base.auc} · {ic(A, "auc")}</span></div>
         <div class="tile"><span class="eyebrow">Anticipa brotes nuevos</span><strong>{nuevo.pr_auc}</strong><span class="small muted">PR-AUC; al azar sería {nuevo.tasa_brote}</span></div>
         <div class="tile"><span class="eyebrow">Recall</span><strong>{pc(A.modelo.recall)}</strong><span class="small muted">línea base: {pc(A.linea_base.recall)}</span></div>
         <div class="tile"><span class="eyebrow">Error en casos (MAE)</span><strong>{A.casos.mae_modelo_p50}</strong><span class="small muted">repetir 4 semanas: {A.casos.mae_linea_base_ultimas_4_semanas}</span></div>
@@ -102,7 +111,7 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <h2 class="chart-title"><Fragment set:html={icon("rain", 20)} /> Solo clima (el de hoy)</h2>
       <p class="small muted">Lluvia, temperatura, El Niño y calendario. Es lo único que llega al día; sirve para priorizar, con confianza limitada.</p>
       <div class="tiles">
-        <div class="tile"><span class="eyebrow">Ordena el riesgo (AUC)</span><strong>{C.modelo.auc}</strong><span class="small muted">{C.linea_base_nombre}: {C.linea_base.auc}</span></div>
+        <div class="tile"><span class="eyebrow">Ordena el riesgo (AUC)</span><strong>{C.modelo.auc}</strong><span class="small muted">{C.linea_base_nombre}: {C.linea_base.auc} · {ic(C, "auc")}</span></div>
         <div class="tile"><span class="eyebrow">Anticipa brotes nuevos</span><strong>{C.subconjuntos.anticipacion_brote_nuevo.pr_auc}</strong><span class="small muted">PR-AUC; al azar sería {C.subconjuntos.anticipacion_brote_nuevo.tasa_brote}</span></div>
         <div class="tile"><span class="eyebrow">Error en casos (MAE)</span><strong>{C.casos.mae_modelo_p50}</strong><span class="small muted">peor que repetir las últimas 4 semanas ({C.casos.mae_linea_base_ultimas_4_semanas}), que hoy no se puede</span></div>
         <div class="tile"><span class="eyebrow">Rango que acierta</span><strong>{pc(C.casos.cobertura_p10_p90)}</strong><span class="small muted">muy por debajo del 80% ideal: por eso la confianza nunca pasa de "media"</span></div>
@@ -132,7 +141,58 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       </tbody>
     </table>
     </div>
-    <p class="small muted">2023 fue una epidemia enorme: el 68% de las semanas-distrito estuvo en brote, contra ~15% en los años de entrenamiento. Con casos recientes el modelo la sigue bien (el error es 2 a 5 veces menor que "sin información"); solo con clima casi no mejora el error, pero sí ordena los distritos por riesgo.</p>
+    <p class="small muted">{texto2023}</p>
+  </section>
+
+  <section class="card">
+    <h2 class="chart-title"><Fragment set:html={icon("scale", 20)} /> ¿Qué tan seguras son estas cifras?</h2>
+    <p class="small muted">Cada métrica trae su intervalo de confianza del 95%, calculado remuestreando <strong>distritos</strong> (no filas: las semanas de un mismo distrito se parecen demasiado y darían intervalos falsamente estrechos). Si dos intervalos no se tocan, la diferencia no es casualidad.</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Métrica</th><th>Con casos recientes</th><th>Solo clima (hoy)</th></tr></thead>
+      <tbody>
+        <tr><td>AUC del modelo</td><td><strong>{A.modelo.auc}</strong> <span class="small muted">({ic(A, "auc")})</span></td><td><strong>{C.modelo.auc}</strong> <span class="small muted">({ic(C, "auc")})</span></td></tr>
+        <tr><td>AUC de la línea base</td><td>{A.linea_base.auc} <span class="small muted">({ic(A, "auc_linea_base")})</span></td><td>{C.linea_base.auc} <span class="small muted">({ic(C, "auc_linea_base")})</span></td></tr>
+        <tr><td>Ventaja sobre la línea base (AUC)</td><td><strong>+{(A.modelo.auc - A.linea_base.auc).toFixed(3)}</strong> <span class="small muted">({ic(A, "auc_ventaja")})</span></td><td><strong>+{(C.modelo.auc - C.linea_base.auc).toFixed(3)}</strong> <span class="small muted">({ic(C, "auc_ventaja")})</span></td></tr>
+        <tr><td>Recall</td><td>{pc(A.modelo.recall)} <span class="small muted">({ic(A, "recall", true)})</span></td><td>{pc(C.modelo.recall)} <span class="small muted">({ic(C, "recall", true)})</span></td></tr>
+        <tr><td>Error en casos (MAE)</td><td>{A.casos.mae_modelo_p50} <span class="small muted">({ic(A, "mae_p50")})</span></td><td>{C.casos.mae_modelo_p50} <span class="small muted">({ic(C, "mae_p50")})</span></td></tr>
+        <tr><td>Casos reales dentro de P10–P90 (ideal 80%)</td><td>{pc(A.casos.cobertura_p10_p90)} <span class="small muted">({ic(A, "cobertura_p10_p90", true)})</span></td><td>{pc(C.casos.cobertura_p10_p90)} <span class="small muted">({ic(C, "cobertura_p10_p90", true)})</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="small muted">La ventaja del modelo con casos sobre el criterio actual del MINSA es clara (los intervalos no se tocan). La del modelo solo clima sobre el calendario es real pero modesta. Son 47 distritos: cualquier cifra por distrito suelto es bastante más incierta que el conjunto.</p>
+  </section>
+
+  <section class="card">
+    <h2 class="chart-title"><Fragment set:html={icon("trendingUp", 20)} /> Calibración de la intensidad</h2>
+    <p class="small muted">El modelo ordena bien los distritos, pero en las epidemias grandes se quedaba corto. Para corregirlo, en cada semana se compara lo que realmente pasó con lo que el modelo había previsto en las últimas 4 semanas ya conocidas, y se reescalan los casos esperados ({cal.regla}). Solo usa información que existía ese día y solo se aplica al modelo con casos recientes.</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Año</th><th>Observado ÷ previsto<br /><span class="small muted">antes → después (1 = sin sesgo)</span></th><th>Rango P10–P90 acierta<br /><span class="small muted">antes → después (ideal 80%)</span></th></tr></thead>
+      <tbody>
+        {cal.por_anio.map((r: any) => (
+          <tr>
+            <td><strong>{r.anio}</strong></td>
+            <td>{r.razon_observado_previsto_antes.toFixed(2)} → <strong>{r.razon_observado_previsto_despues.toFixed(2)}</strong></td>
+            <td>{pc(r.cobertura_p10_p90_antes)} → <strong>{pc(r.cobertura_p10_p90_despues)}</strong></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    </div>
+    <p class="small muted"><strong>Resultado:</strong> en las epidemias de 2023 y 2024 el sesgo baja de {cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_antes}× y {cal.por_anio.find((r: any) => r.anio === 2024).razon_observado_previsto_antes}× a casi 1, y el rango se acerca al 80%. <strong>Costo:</strong> el error medio sube de {cal.total.mae_p50_antes} a {cal.total.mae_p50_despues} casos, porque en años tranquilos el ajuste a veces se pasa. En 2022 y 2025 hubo poco que corregir.</p>
+    <p class="data-note warn"><span><strong>Con solo clima no hay con qué calibrar:</strong> sin casos recientes no se conoce lo que realmente pasó. Su sesgo es grande: lo observado fue {sesgoC["2023"]}× lo previsto en 2023 y {sesgoC["2024"]}× en 2024. Por eso hoy se muestra su rango como orientación y no como cifra, y se contrasta con las cifras oficiales del CDC.</span></p>
+  </section>
+
+  <section class="card">
+    <h2 class="chart-title"><Fragment set:html={icon("shield", 20)} /> Validación externa con datos de 2026 (Piura)</h2>
+    <p class="small muted">Prueba con datos que el modelo de hoy nunca vio: los casos 2025–2026 del Gobierno Regional de Piura, de {val.periodo_prueba} ({val.distritos_piura} distritos). Sus conteos no son comparables con los del CDC (otro sistema), así que "actividad alta" se define de forma relativa: casos de las próximas 4 semanas sobre el percentil 75 de ese mismo distrito.</p>
+    <div class="tiles">
+      <div class="tile"><span class="eyebrow">Ordena la actividad (AUC)</span><strong>{val.ordenamiento.auc_modelo_clima}</strong><span class="small muted">solo calendario: {val.ordenamiento.auc_linea_base_calendario}</span></div>
+      <div class="tile"><span class="eyebrow">Correlación de rangos</span><strong>{val.ordenamiento.correlacion_rangos_casos_previstos_vs_gore}</strong><span class="small muted">casos previstos contra casos notificados</span></div>
+      <div class="tile"><span class="eyebrow">Entre distritos, semana a semana</span><strong>{val.ordenamiento.correlacion_media_por_semana_entre_distritos}</strong><span class="small muted">¿ordena qué distrito va peor?</span></div>
+    </div>
+    <p class="small muted"><strong>¿Sirven los casos recientes del Gobierno Regional como señal de arrastre?</strong> AUC {val.arrastre.solo_modelo_clima.auc} solo con el modelo contra {val.arrastre.modelo_clima_mas_arrastre.auc} sumando esa señal (diferencia {val.arrastre.mejora_auc}, intervalo del 95%: {val.arrastre.mejora_auc_ic95[0]} a {val.arrastre.mejora_auc_ic95[1]}). {val.arrastre.conclusion}</p>
   </section>
 
   <section class="two">
@@ -268,7 +328,7 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </div>
     <p class={`verdict ${rt.decision === "promovido" ? "ok" : ""}`}>
       <Fragment set:html={icon(rt.decision === "promovido" ? "checkCircle" : "info", 18)} />
-      <span><strong>Modelo de hoy: {rt.decision === "promovido" ? "el retador fue promovido a producción." : "se mantiene el campeón."}</strong> {rt.motivo} <span class="muted">{rt.regla}</span> Agregar las epidemias de 2023–24 no mejora de forma clara al modelo solo-clima: su límite es la falta de casos recientes, no la cantidad de años.</span>
+      <span><strong>Modelo de hoy: {rt.decision === "promovido" ? "el retador fue promovido a producción." : "se mantiene el campeón."}</strong> {rt.motivo} <span class="muted">{rt.regla}</span> El año de comparación ({rt.ventana_comparacion.desde} a {rt.ventana_comparacion.hasta}) fue tranquilo, así que no pone a prueba del todo a un modelo entrenado también con las epidemias de 2023–24. Aun así, el límite del modelo solo clima es la falta de casos recientes, no la cantidad de años.</span>
     </p>
     <p class="small muted">Los replays de 2017 y 2023 usan el campeón de evaluación, que nunca vio esas epidemias. Cada entrenamiento queda registrado (MLflow y <code>experiments.jsonl</code>).</p>
   </section>
@@ -309,7 +369,7 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
             <tr>
               <td>{f.url ? <a href={f.url} target="_blank" rel="noopener">{f.n}</a> : f.n}</td>
               <td>{f.real ? <span class="badge lvl-bajo">real</span> : <span class="badge lvl-medio">simulado</span>} <span class="small muted">{c?.fuente}</span></td>
-              <td>{c ? fecha(c.hasta) : "—"}{c?.anio_provisional_descartado ? <div class="small muted">{c.anio_provisional_descartado} se descarta: el CDC aún lo consolida</div> : null}</td>
+              <td>{c ? fecha(c.hasta) : "—"}{c?.ultima_semana_epidemiologica ? <div class="small muted">semana epidemiológica {c.ultima_semana_epidemiologica.replace("-SE", " · SE ")}</div> : null}</td>
               <td>{c?.casos_total != null ? c.casos_total.toLocaleString("es-PE") : "—"}</td>
             </tr>
           );
@@ -320,8 +380,8 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </table>
     </div>
     <ul class="small">
-      <li><strong>Por qué se descarta el último año:</strong> en el archivo nacional, Piura 2025 trae 1 117 casos y el Gobierno Regional de Piura reporta 12 242 para el mismo año. El CDC consolida con retraso; cuando el archivo incluya un año nuevo, el anterior se usa solo.</li>
-      <li><strong>Piura 2025–2026 (Gobierno Regional):</strong> se muestra como contexto en los gráficos, pero no entra al entrenamiento: no puedo garantizar que empalme con la serie nacional.</li>
+      <li><strong>El 2025 del archivo es válido:</strong> lo comprobamos contra el informe oficial de la DGE al 12/09/2026, donde la columna 2025 coincide exactamente con el archivo (Piura 1 020, Tumbes 970, Lambayeque 658 hasta la semana 36). Fue un año bajo después de las epidemias de 2023 y 2024. Antes lo habíamos descartado por error, creyéndolo incompleto.</li>
+      <li><strong>Piura 2025–2026 (Gobierno Regional):</strong> se muestra como contexto y como validación externa, pero no entra al entrenamiento: sus conteos no son comparables con los del CDC (2025: 12 242 frente a 1 117), probablemente porque es otro sistema de registro.</li>
       <li><strong>Población y acceso a agua</strong> de cada distrito son aproximados (orden de magnitud INEI). Los casos se cruzan por código oficial (UBIGEO), no por nombre.</li>
     </ul>
   </section>

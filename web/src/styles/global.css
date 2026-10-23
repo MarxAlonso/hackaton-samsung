@@ -181,6 +181,10 @@ svg { vertical-align: middle; }
   :root:not([data-theme="light"]) .theme-toggle .ico-sun { display: none; }
   :root:not([data-theme="light"]) .theme-toggle .ico-moon { display: inline; }
 }
+html[data-size="lg"] { font-size: 112.5%; }
+html[data-size="xl"] { font-size: 125%; }
+.theme-toggle.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.a11y-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
 .footer { padding: 32px 16px 24px; border-top: 1px solid var(--border); background: var(--surface); color: var(--text-2); font-size: 0.88rem; margin-top: 32px; }
 .footer .foot-grid { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.2fr; gap: 28px; }
 .footer .foot-brand p { margin: 8px 0 14px; max-width: 360px; line-height: 1.5; }

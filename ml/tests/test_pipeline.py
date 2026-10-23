@@ -114,7 +114,7 @@ def test_metricas_con_datos_reales():
     assert clima["modelo"]["auc"] > clima["linea_base"]["auc"]
     assert clima["modelo"]["auc"] < casos["modelo"]["auc"]
     # La evaluación progresiva existe para 2022, 2023 y 2024
-    assert [r["anio"] for r in casos["evaluacion_progresiva"]] == [2022, 2023, 2024]
+    assert [r["anio"] for r in casos["evaluacion_progresiva"]] == [2022, 2023, 2024, 2025]
     assert all(r["brier"] < r["brier_sin_informacion"] for r in casos["evaluacion_progresiva"])
 
 
@@ -122,7 +122,7 @@ def test_los_datos_reales_estan_documentados():
     m = json.loads((REPORTS / "metrics.json").read_text(encoding="utf-8"))
     cov = m["datos"]
     for d in ("dengue", "leptospirosis", "eda", "ira"):
-        assert cov[d]["anio_provisional_descartado"] and cov[d]["casos_total"] > 1000
+        assert cov[d]["ultima_semana_epidemiologica"] and cov[d]["casos_total"] > 1000
     assert "Simulado" in cov["golpe_calor"]["fuente"]
 
 

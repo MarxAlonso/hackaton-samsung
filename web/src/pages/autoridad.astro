@@ -33,6 +33,8 @@ import { icon } from "../lib/icons";
 
   <section class="kpis" id="kpis" aria-live="polite"></section>
 
+  <section class="card official" id="official" hidden aria-label="Contexto oficial 2026"></section>
+
   <section class="row2">
     <div class="card map-card">
       <div class="map-head">
@@ -114,6 +116,7 @@ import { icon } from "../lib/icons";
   import { renderHeatmap } from "../lib/heatmap";
   import { renderSeasons, renderDistrictCompare } from "../lib/compare";
   import { simulate, warmup } from "../lib/simulator";
+  import { renderOfficialContext, renderDistrictExtras } from "../lib/context";
   import { explain } from "../lib/explain";
 
   type ScenarioKey = "actual" | "2023" | "2017";
@@ -274,6 +277,7 @@ import { icon } from "../lib/icons";
           <h2>${d.district} ${badge(r.nivel)}</h2>
           <div id="headline">${headline(d.district, r)}</div>
           ${dataNote(p)}
+          <div id="extras"></div>
         </div>
         <div class="climate-chips">
           <span class="chip-c">${icon("rain", 16)} ${fmt(p.clima.lluvia_2_a_6sem)} mm <small>lluvia 2–6 sem. atrás</small></span>
@@ -338,6 +342,7 @@ import { icon } from "../lib/icons";
     $("#an-name").textContent = d.district;
     fillCompareOptions(id);
     renderAnalysis();
+    if (scenarioSel.value === "actual") renderDistrictExtras($("#extras"), id);
     history.replaceState(null, "", `?escenario=${scenarioSel.value}&d=${id}`);
     if (window.matchMedia("(max-width: 900px)").matches) el.scrollIntoView({ behavior: "smooth" });
   }
@@ -437,6 +442,7 @@ import { icon } from "../lib/icons";
     const s = scenario();
     const replay = $("#replay");
     replay.hidden = scenarioSel.value === "actual";
+    $("#official").hidden = scenarioSel.value !== "actual";
     replay.innerHTML = `<strong>Modo replay — ${s.etiqueta}.</strong> El sistema predice como si estuviéramos en la semana del
       ${weekLabel(s.semana)}. Los casos son los reales del CDC-MINSA: en cada distrito puedes comparar la predicción con lo que realmente pasó.
       ${scenarioSel.value === "2023" ? "El modelo se entrenó solo con datos hasta 2021: nunca vio esta epidemia." : ""}`;
@@ -468,13 +474,29 @@ import { icon } from "../lib/icons";
   deptSel.addEventListener("change", refresh);
 
   Promise.all([loadData(), loadSeries()]).then(([data, ser]) => {
-    app = data; series = ser; refresh();
+    app = data; series = ser;
+    renderOfficialContext($("#official"), app.contexto_oficial_2026, app.metricas.dengue_clima.razon_observado_previsto_por_anio);
+    refresh();
     const sc = scenario();
     warmup(sc.distritos[0].modelo_tipo, sc.modelo.id);
   });
 </script>
 
 <style>
+  .official { margin-bottom: 16px; display: grid; gap: 12px; }
+  :global(.official-head) { display: flex; gap: 12px; align-items: flex-start; }
+  :global(.official-head h2) { margin: 2px 0 4px; }
+  :global(.official-grid) { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  :global(.official-grid li) { display: flex; flex-direction: column; gap: 2px; padding: 12px; background: var(--surface-2); border-radius: 10px; }
+  :global(.official-grid .big) { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; }
+  :global(.extra) { margin-top: 14px; padding: 16px; }
+  :global(.estab) { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+  :global(.estab li) { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(60px, 1fr) 34px 56px; gap: 10px; align-items: center; }
+  :global(.estab-name) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :global(.estab-bar) { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+  :global(.estab-bar i) { display: block; height: 100%; background: var(--series-1); border-radius: 4px; }
+  :global(.estab .num) { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  :global(.estab .up) { color: var(--critical-ink); }
   .head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
   .filters, .controls { display: flex; gap: 12px; flex-wrap: wrap; }
   .filters label, .controls label { display: flex; flex-direction: column; font-size: 0.8rem; font-weight: 600; color: var(--text-2); gap: 4px; min-width: 160px; }

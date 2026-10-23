@@ -5,9 +5,10 @@ Entrada: los CSV que baja ingest_cases.py. Salida: una tabla (distrito × semana
 Decisiones que importan (todas con evidencia en ml/reports/dataset_card.md):
   1. Semanas: el MINSA usa semanas epidemiológicas (domingo–sábado; la semana 1 contiene el 4 de enero).
      Nuestro clima va de lunes a domingo; cada semana epidemiológica se asigna al lunes siguiente a su domingo.
-  2. El último año de cada archivo nacional se considera PROVISIONAL y no se usa: el CDC lo consolida con
-     retraso (en Piura, 2025 trae 1 117 casos en el archivo nacional frente a 12 242 en el del Gobierno Regional).
-     Cuando el archivo incluya un año nuevo, el año anterior pasa a usarse solo.
+  2. Cobertura: hasta la última semana con datos del archivo. Si el último año está en curso (su última semana es
+     menor que la 52), la última semana se excluye por estar incompleta. Se comprobó que el 2025 del archivo es
+     válido: coincide exactamente con la columna 2025 de la sala situacional del CDC (Piura 1 020, Tumbes 970,
+     Lambayeque 658 hasta la SE 36). Un descarte automático del "último año" fue un error y se eliminó.
   3. Una semana sin filas dentro del periodo cubierto es CERO casos; fuera del periodo cubierto es DESCONOCIDO (NaN).
   4. El archivo regional de Piura (2025–2026) NO se mezcla con la serie nacional: se guarda aparte como contexto.
   5. Los distritos se cruzan por UBIGEO, no por nombre (el archivo trae la Ñ dañada).
@@ -58,18 +59,24 @@ def _finish(df, ubigeos, value="casos"):
     return df.groupby(["ubigeo", "week"], as_index=False)[value].sum()
 
 
+def _last(df):
+    """(año, última semana) más reciente del archivo completo, antes de filtrar distritos o enfermedades."""
+    year = int(df.ano.max())
+    return year, int(df.loc[df.ano == year, "semana"].clip(upper=53).max())
+
+
 def read_dengue(path, ubigeos):
     df = pd.read_csv(path, usecols=["ubigeo", "ano", "semana", "tipo_dx"], dtype={"ubigeo": str})
     df["ubigeo"] = to_ubigeo(df.ubigeo)
     df = df[df.tipo_dx.isin(["C", "P"])]  # confirmados y probables
     df["casos"] = 1
-    return _finish(df, ubigeos), int(df.ano.max())
+    return _finish(df, ubigeos), _last(df)
 
 
 def read_leptospirosis(path, ubigeos):
     df = pd.read_csv(path, usecols=["ubigeo", "ano", "semana", "enfermedad", "tipo_dx"], dtype={"ubigeo": str})
     df["ubigeo"] = to_ubigeo(df.ubigeo)
-    last = int(df.ano.max())
+    last = _last(df)
     df = df[(df.enfermedad == "LEPTOSPIROSIS") & df.tipo_dx.isin(["C", "P"])]
     df["casos"] = 1
     return _finish(df, ubigeos), last
@@ -79,7 +86,7 @@ def read_eda(path, ubigeos):
     df = pd.read_csv(path, usecols=["ubigeo", "ano", "semana", "episodios_men5", "episodios_may5"], dtype={"ubigeo": str})
     df["ubigeo"] = to_ubigeo(df.ubigeo)
     df["casos"] = df.episodios_men5.fillna(0) + df.episodios_may5.fillna(0)
-    return _finish(df, ubigeos), int(df.ano.max())
+    return _finish(df, ubigeos), _last(df)
 
 
 def read_ira(path, ubigeos):
@@ -88,7 +95,7 @@ def read_ira(path, ubigeos):
                      usecols=["ubigeo", "ano", "semana", "ira_no_neumonia", "neumonias_men5", "neumonias_60mas"])
     df["ubigeo"] = to_ubigeo(df.ubigeo)
     df["casos"] = df.ira_no_neumonia.fillna(0) + df.neumonias_men5.fillna(0) + df.neumonias_60mas.fillna(0)
-    return _finish(df, ubigeos), int(df.ano.max())
+    return _finish(df, ubigeos), _last(df)
 
 
 def read_gore_piura(path, ubigeos):
@@ -126,7 +133,7 @@ def to_grid(counts, districts, weeks, covered_until):
     return grid[["district_id", "week", "casos"]]
 
 
-def build(weeks, drop_provisional_year=True, directory=MINSA):
+def build(weeks, directory=MINSA):
     """Devuelve (tabla semanal con una columna por enfermedad, ficha de cobertura)."""
     districts = districts_frame()
     ubigeos = set(districts.ubigeo)
@@ -134,15 +141,15 @@ def build(weeks, drop_provisional_year=True, directory=MINSA):
     table = pd.DataFrame({"district_id": np.repeat(districts.district_id.values, len(weeks)), "week": np.tile(weeks, len(districts))})
     coverage = {}
     for name, (fname, reader) in READERS.items():
-        counts, last_year = reader(directory / fname, ubigeos)
-        # El año más reciente del archivo está incompleto: se usa hasta la última semana del año anterior
-        first_week_last_year = epi_week_monday(last_year, 1)[0]
-        covered = first_week_last_year - pd.Timedelta(days=7) if drop_provisional_year else epi_week_monday(last_year, 53)[0]
+        counts, (last_year, last_week) = reader(directory / fname, ubigeos)
+        # La última semana de un año en curso puede estar incompleta; un año cerrado se usa entero
+        usable = last_week if last_week >= 52 else last_week - 1
+        covered = epi_week_monday(last_year, usable)[0] if usable >= 1 else epi_week_monday(last_year - 1, 52)[0]
         counts = counts[counts.week <= covered]
         grid = to_grid(counts, districts, weeks, covered).rename(columns={"casos": name})
         table = table.merge(grid, on=["district_id", "week"], how="left")
         coverage[name] = {"fuente": SOURCE_LABEL[name], "hasta": str(pd.Timestamp(covered).date()),
-                          "anio_provisional_descartado": last_year if drop_provisional_year else None,
+                          "ultima_semana_epidemiologica": f"{last_year}-SE{max(usable, 1)}",
                           "casos_total": int(counts.casos.sum())}
     # Contexto de Piura (no entra al entrenamiento)
     gore_path = directory / "dengue_piura_gore.csv"

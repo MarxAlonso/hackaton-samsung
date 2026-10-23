@@ -1,0 +1,30 @@
+{
+  "fuente": "Gobierno Regional de Piura (casos de dengue 2025–2026; no comparables con los del CDC, por eso la verdad es relativa)",
+  "modelo": "dengue_clima (solo clima) — el que predice hoy",
+  "periodo_prueba": "2026-01-05 a 2026-05-25",
+  "distritos_piura": 23,
+  "filas_prueba": 483,
+  "tasa_actividad_alta_prueba": 0.381,
+  "ordenamiento": {
+    "auc_modelo_clima": 0.685,
+    "auc_linea_base_calendario": 0.579,
+    "correlacion_rangos_casos_previstos_vs_gore": 0.704,
+    "correlacion_media_por_semana_entre_distritos": 0.611
+  },
+  "arrastre": {
+    "solo_modelo_clima": {
+      "auc": 0.685,
+      "brier": 0.2323
+    },
+    "modelo_clima_mas_arrastre": {
+      "auc": 0.717,
+      "brier": 0.2116
+    },
+    "mejora_auc": 0.032,
+    "mejora_auc_ic95": [
+      -0.046,
+      0.11
+    ],
+    "conclusion": "La señal de arrastre mejora el AUC un poco, pero el intervalo del 95% incluye el cero (23 distritos, pocas semanas) y su conteo no es comparable con el del CDC: NO se integra al modelo y se usa solo como contexto en los gráficos."
+  }
+}

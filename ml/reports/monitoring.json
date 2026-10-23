@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-23 11:09",
+  "generado": "2026-10-23 12:43",
   "modelo_vigilado": "solo clima (el que predice hoy)",
   "ventana_reciente": {
     "desde": "2026-04-13",
@@ -171,11 +171,43 @@
     },
     {
       "periodo": "2024Q4",
-      "n": 376,
-      "tasa_brote": 0.17,
-      "brier": 0.1365,
+      "n": 611,
+      "tasa_brote": 0.159,
+      "brier": 0.1245,
       "prob_media": 0.081,
+      "auc": 0.738
+    },
+    {
+      "periodo": "2025Q1",
+      "n": 611,
+      "tasa_brote": 0.116,
+      "brier": 0.1399,
+      "prob_media": 0.23,
+      "auc": 0.681
+    },
+    {
+      "periodo": "2025Q2",
+      "n": 611,
+      "tasa_brote": 0.038,
+      "brier": 0.1357,
+      "prob_media": 0.277,
       "auc": 0.727
+    },
+    {
+      "periodo": "2025Q3",
+      "n": 611,
+      "tasa_brote": 0.026,
+      "brier": 0.0478,
+      "prob_media": 0.128,
+      "auc": 0.853
+    },
+    {
+      "periodo": "2025Q4",
+      "n": 423,
+      "tasa_brote": 0.012,
+      "brier": 0.0212,
+      "prob_media": 0.073,
+      "auc": 0.977
     }
   ],
   "desempeno_por_trimestre_con_casos": [
@@ -269,20 +301,53 @@
     },
     {
       "periodo": "2024Q4",
-      "n": 376,
-      "tasa_brote": 0.17,
-      "brier": 0.0829,
+      "n": 611,
+      "tasa_brote": 0.159,
+      "brier": 0.082,
       "prob_media": 0.112,
-      "auc": 0.918
+      "auc": 0.904
+    },
+    {
+      "periodo": "2025Q1",
+      "n": 611,
+      "tasa_brote": 0.116,
+      "brier": 0.1023,
+      "prob_media": 0.174,
+      "auc": 0.791
+    },
+    {
+      "periodo": "2025Q2",
+      "n": 611,
+      "tasa_brote": 0.038,
+      "brier": 0.03,
+      "prob_media": 0.105,
+      "auc": 0.954
+    },
+    {
+      "periodo": "2025Q3",
+      "n": 611,
+      "tasa_brote": 0.026,
+      "brier": 0.0205,
+      "prob_media": 0.043,
+      "auc": 0.972
+    },
+    {
+      "periodo": "2025Q4",
+      "n": 423,
+      "tasa_brote": 0.012,
+      "brier": 0.0087,
+      "prob_media": 0.033,
+      "auc": 0.996
     }
   ],
-  "ultimo_trimestre_con_casos": "2024Q4",
-  "brier_validacion": 0.289,
-  "brier_reciente": 0.1313,
+  "ultimo_trimestre_con_casos": "2025Q4",
+  "brier_validacion": 0.2383,
+  "brier_reciente": 0.0345,
   "estado": "reentrenar",
   "motivos": [
     "deriva fuerte (PSI > 0,25) en variables clave: Mar Niño 1+2, Índice ONI, Lluvia hace 2–6 semanas",
-    "valores fuera del rango de entrenamiento en: Mar Niño 1+2"
+    "valores fuera del rango de entrenamiento en: Mar Niño 1+2",
+    "las probabilidades están descalibradas en el último trimestre con casos conocidos"
   ],
   "reglas": "PSI < 0,10 estable · 0,10–0,25 vigilar · > 0,25 deriva fuerte; reentrenar si hay deriva fuerte en variables clave, Brier > 1,5× o calibración fuera de ±10 puntos."
 }

@@ -81,6 +81,8 @@ export async function simulate(app: AppData, pred: DistrictPrediction, input: Sc
     q[name] = Math.max(0, Math.expm1((out[s.outputNames[0]].data as Float32Array)[0]));
   }
   [q.p10, q.p50, q.p90] = [q.p10, q.p50, q.p90].sort((a, b) => a - b); // P10 ≤ P50 ≤ P90, como en Python
+  const k = pred.factor_intensidad ?? 1; // calibración de la intensidad (solo modelo con casos recientes)
+  q.p10 *= k; q.p50 *= k; q.p90 *= k;
   const conf = confidence(q.p10, q.p50, q.p90, prob, tipo);
   const t = app.modelo.umbrales_nivel;
   const riesgos = {

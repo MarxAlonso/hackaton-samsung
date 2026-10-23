@@ -12,15 +12,15 @@ Datos abiertos de vigilancia epidemiológica del CDC-MINSA, Plataforma Nacional 
 | Leptospirosis | `…_zoonosis_2000_2025_0.csv` | 2000–2025 | un caso por fila |
 | Dengue Piura 2025–2026 | `dataset_dengue_actualizado.csv` (Gobierno Regional de Piura) | 2023, 2025, 2026 (corte 2026-07-02) | un caso por fila |
 
-Nuestros 47 distritos suman 297 681 casos de dengue, 5 501 de leptospirosis, 2 038 405 episodios de EDA y 5 841 555 de IRA.
+Nuestros 47 distritos suman 300 221 casos de dengue, hasta la semana epidemiológica 53 de 2025 (29 dic. 2025).
 
 ### Decisiones y límites (con evidencia)
 
 - **Cruce por UBIGEO, no por nombre.** La Ñ viene dañada en origen (Pariñas, Tambo Grande, Ferreñafe).
-- **El último año del archivo nacional (2025) es provisional y se descarta.** Piura 2025: el CDC trae 1 117 casos y el Gobierno Regional de Piura 12 242. El dengue de 2025 en Tumbes, Piura y Lambayeque es 0,20, 0,03 y 0,07 veces el de 2024. Cuando salga un archivo con un año más, el anterior pasa a usarse. Por eso la cobertura oficial termina el **2024-12-23**.
+- **El 2025 del archivo es válido (se verificó).** Antes se descartaba por parecer incompleto: Piura traía 1 117 casos frente a 12 242 del Gobierno Regional. El informe de la DGE "Dengue al 12/09/2026" (misma fuente oficial del CDC) trae una columna 2025 que coincide exactamente con el archivo hasta la semana 36: Tumbes 970, Piura 1 020, Lambayeque 658, La Libertad 202, San Martín 9 779. 2025 fue un año bajo después de las epidemias de 2023 y 2024. Desde entonces la cobertura llega hasta la última semana del archivo (si el último año está en curso, se excluye su última semana por estar incompleta).
 - **Ceros solo dentro de la cobertura;** fuera es dato desconocido (NaN), nunca cero.
-- **Gobierno Regional de Piura:** su 2023 (semanas 1–19) coincide con el CDC (22 712 vs 22 825), pero hay un salto en el empalme 2024→2025. Se muestra como contexto en los gráficos (hasta 2026-06-22, sin la semana de corte incompleta) y **no se usa para entrenar**.
-- Tumbes y Lambayeque no tienen 2026 en ninguna fuente abierta.
+- **Gobierno Regional de Piura:** su 2023 (semanas 1–19) coincide con el CDC (22 712 vs 22 825), pero en 2025 sus conteos son unas 11 veces mayores que los del CDC (otro sistema de registro), así que no se pueden empalmar. Se usa **aparte**: como contexto en los gráficos (hasta 2026-06-22, sin la semana de corte incompleta), como validación externa del modelo de hoy y para listar los establecimientos que notifican (la fuente trae `CENTRO_SALUD`). **No se usa para entrenar.**
+- Tumbes y Lambayeque no tienen 2026 por distrito en ninguna fuente abierta. Sí hay totales departamentales oficiales de 2026 (informe de la DGE al 12/09/2026 y alerta epidemiológica N.° 008-2026 del Minsa), transcritos en `ml/reference/contexto_oficial_2026.json` con sus fuentes. Se usan para contrastar y mostrar el contexto, no para entrenar.
 - Semanas epidemiológicas: domingo a sábado, la semana 1 contiene el 4 de enero; se asigna al lunes siguiente.
 - Un caso notificado no es una infección: más casos pueden ser más contagio, más pruebas o más notificación.
 

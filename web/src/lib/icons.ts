@@ -3,6 +3,10 @@ const wrap = (body: string, size = 20) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
 
 const BODIES: Record<string, string> = {
+  textSize: `<path d="M3 19L8.5 5 14 19M5 14.5h7"/><path d="M15 19l3-8 3 8M16 16.5h4"/>`,
+  volume: `<path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>`,
+  stop: `<rect x="6" y="6" width="12" height="12" rx="2"/>`,
+  flag: `<path d="M5 21V4M5 4h11l-1.5 4L16 12H5"/>`,
   home: `<path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/>`,
   hospital: `<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M12 8v6M9 11h6M8 21v-4h8v4"/>`,
   pin: `<path d="M12 22s7-6.4 7-12a7 7 0 1 0-14 0c0 5.6 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>`,

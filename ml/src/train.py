@@ -10,7 +10,7 @@ Otras enfermedades (leptospirosis, EDA, IRA reales; golpe de calor simulado): re
 también con y sin casos recientes.
 
 Validación temporal: entrena con 2015–2021 y evalúa con 2022 en adelante (con datos reales: incluye las
-epidemias de 2023 y 2024, que el modelo nunca vio). El último año del archivo nacional es provisional y no se usa.
+epidemias de 2023 y 2024, que el modelo nunca vio).
 """
 import json
 
@@ -24,6 +24,7 @@ from sklearn.metrics import (average_precision_score, brier_score_loss, f1_score
 from sklearn.preprocessing import StandardScaler
 
 from config import DATA_PROCESSED, DISEASES, MODELS, REPORTS, SEED, TRAIN_END
+from calibration import bootstrap_by_district, calibration_report, weekly_sums
 from features import FEATURES, SIMPLE_FEATURES, build, complete_rows
 
 QUANTILES = {"p10": 0.1, "p50": 0.5, "p90": 0.9}
@@ -129,12 +130,32 @@ def train_dengue(train, test, features, family):
         "mae_linea_base_ultimas_4_semanas": round(float(mean_absolute_error(y_cases, naive)), 2),
         "cobertura_p10_p90": round(float(((y_cases >= preds["p10"]) & (y_cases <= preds["p90"])).mean()), 3),
     }
+    # Incertidumbre de las métricas: intervalo del 95% remuestreando distritos
+    test_ = test.assign(_proba=proba, _base=base, _p10=preds["p10"], _p50=preds["p50"], _p90=preds["p90"])
+
+    def stats(df):
+        y = df.dengue_outbreak.values.astype(int)
+        mod, lb = classification_metrics(y, df._proba.values), classification_metrics(y, df._base.values)
+        yc = df.dengue_next.values
+        return {"auc": mod["auc"], "auc_linea_base": lb["auc"], "auc_ventaja": mod["auc"] - lb["auc"],
+                "recall": mod["recall"], "brier": mod["brier"],
+                "mae_p50": float(np.abs(yc - df._p50.values).mean()),
+                "cobertura_p10_p90": float(((yc >= df._p10.values) & (yc <= df._p90.values)).mean())}
+
+    metrics["intervalos_95"] = bootstrap_by_district(test_, stats)
+    # Sesgo de intensidad por año: casos observados / casos previstos (1 = sin sesgo; > 1 = el modelo se queda corto)
+    metrics["razon_observado_previsto_por_anio"] = {
+        str(int(yr)): round(float(y_cases[(test.week.dt.year == yr).values].sum() / max(preds["p50"][(test.week.dt.year == yr).values].sum(), 1)), 2)
+        for yr in sorted(test.week.dt.year.unique())}
+    if family == "casos":
+        obs, prd = weekly_sums(test.week.values, y_cases, preds["p50"])
+        metrics["calibracion_intensidad"] = calibration_report(test, preds, obs, prd)
     metrics["importancia_variables"] = dict(sorted(
         ((f, round(float(v), 4)) for f, v in zip(features, clf.feature_importances_)), key=lambda kv: -kv[1]))
     return clf, regs, metrics
 
 
-def walk_forward(data, features, years=(2022, 2023, 2024)):
+def walk_forward(data, features, years=(2022, 2023, 2024, 2025)):
     """Evaluación progresiva: para cada año, se entrena con TODO lo anterior y se prueba en ese año.
     Muestra cuánto mejora el modelo cuando ya vio epidemias, y se compara con "no tener información"
     (predecir siempre la tasa de brote del entrenamiento)."""

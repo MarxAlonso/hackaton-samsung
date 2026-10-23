@@ -28,3 +28,6 @@ sesion.md
 
 # Claves privadas de las alertas push
 ml/.vapid/
+
+# Informe de la DGE usado como fuente (no se redistribuye; las cifras están transcritas en ml/reference)
+Dengue_al*.pdf

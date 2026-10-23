@@ -7,7 +7,7 @@ Responde dos preguntas cada semana, para el modelo que predice HOY (familia "cli
      datos que llegan al día (los casos oficiales llegan con meses de retraso).
   2. ¿El modelo sigue acertando? (model drift)
      AUC, Brier y calibración por trimestre sobre semanas cuyo resultado ya se conoce
-     (hoy el último trimestre con casos oficiales conocidos es el de fines de 2024).
+     (hoy el último trimestre con casos oficiales conocidos es el de fines de 2025).
 
 Reglas de decisión (umbrales estándar de la industria):
   PSI < 0,10 estable · 0,10–0,25 vigilar · > 0,25 deriva fuerte.

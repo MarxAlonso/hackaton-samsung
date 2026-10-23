@@ -71,6 +71,8 @@ def predict_district(district_id, escenario="actual", lluvia_pct=0.0, temp_delta
     prob = float(bundle["clf"].predict_proba(X)[0, 1])
     q = {k: float(np.expm1(r.predict(X)[0]).clip(min=0)) for k, r in bundle["regs"].items()}
     q = dict(zip(("p10", "p50", "p90"), sorted((q["p10"], q["p50"], q["p90"]))))
+    k = base.get("factor_intensidad", 1.0)   # calibración de la intensidad (solo modelo con casos recientes)
+    q = {name: v * k for name, v in q.items()}
     conf_label, conf_score = confidence(q["p10"], q["p50"], q["p90"], prob, family)
     thresholds = meta["umbrales_nivel"]
     riesgos = {"dengue": {"prob": round(prob, 3), "nivel": level_of(prob, thresholds),

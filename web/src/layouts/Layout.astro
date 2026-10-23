@@ -40,6 +40,8 @@ const nav = [
       try {
         const t = localStorage.getItem("theme");
         if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+        const z = localStorage.getItem("text-size");
+        if (z === "lg" || z === "xl") document.documentElement.dataset.size = z;
       } catch {}
     </script>
   </head>
@@ -63,6 +65,9 @@ const nav = [
         ))}
         <button type="button" id="install-btn" class="install-btn" hidden title="Instalar la app en tu celular">
           <Fragment set:html={icon("smartphone", 18)} /><span>Instalar app</span>
+        </button>
+        <button type="button" id="size-toggle" class="theme-toggle" aria-label="Tamaño del texto: normal" title="Tamaño del texto">
+          <Fragment set:html={icon("textSize", 18)} />
         </button>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Cambiar entre modo claro y oscuro" title="Modo claro / oscuro">
           <span class="ico-sun"><Fragment set:html={icon("sun", 18)} /></span>
@@ -153,6 +158,25 @@ const nav = [
       addEventListener("scroll", onScroll, { passive: true });
       onScroll();
       toTop.addEventListener("click", () => scrollTo({ top: 0, behavior: "smooth" }));
+
+      // Texto grande: normal → grande → muy grande (se recuerda en este navegador)
+      const sizeBtn = document.getElementById("size-toggle")!;
+      const SIZES = [["", "normal"], ["lg", "grande"], ["xl", "muy grande"]] as const;
+      const syncSize = () => {
+        const cur = document.documentElement.dataset.size ?? "";
+        const label = SIZES.find(([k]) => k === cur)?.[1] ?? "normal";
+        sizeBtn.setAttribute("aria-label", `Tamaño del texto: ${label}. Toca para cambiarlo`);
+        sizeBtn.title = `Tamaño del texto: ${label}`;
+        sizeBtn.classList.toggle("on", cur !== "");
+      };
+      sizeBtn.addEventListener("click", () => {
+        const cur = document.documentElement.dataset.size ?? "";
+        const next = SIZES[(SIZES.findIndex(([k]) => k === cur) + 1) % SIZES.length][0];
+        if (next) document.documentElement.dataset.size = next; else delete document.documentElement.dataset.size;
+        try { next ? localStorage.setItem("text-size", next) : localStorage.removeItem("text-size"); } catch {}
+        syncSize();
+      });
+      syncSize();
 
       const btn = document.getElementById("theme-toggle")!;
       const root = document.documentElement;

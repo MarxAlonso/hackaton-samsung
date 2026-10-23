@@ -21,13 +21,15 @@ import joblib
 import numpy as np
 import pandas as pd
 
+import establishments
 import hazards
-from config import (API_MODELS, DATA_PROCESSED, DISEASES, HORIZON_WEEKS, MODELS, REPORTS,
-                    WEB_DATA, districts_frame)
+from config import (API_MODELS, DATA_PROCESSED, DATA_RAW, DISEASES, HORIZON_WEEKS, MODELS, REPORTS,
+                    ROOT, WEB_DATA, districts_frame)
 from content import (AUTHORITY_ACTIONS, CITIZEN_ACTIONS, DISEASE_INFO, FLOOD_ACTIONS_AUTHORITY,
                      FLOOD_ACTIONS_CITIZEN, FLOOD_INFO, LEVEL_THRESHOLDS, LEVELS, level_of)
 from features import CLIMATE_FEATURES, DENGUE_FEATURES, FEATURES, RAIN_FEATURES, SIMPLE_FEATURES, TEMP_FEATURES
 from retrain import PROD_FILE
+from calibration import FACTOR_MAX, FACTOR_MIN, LAG_WEEKS, WINDOW_WEEKS, intensity_factor, weekly_sums
 from train import FAMILY_FILE, predict_cases
 
 FRESH_DAYS = 14  # el último caso conocido debe ser de las últimas 2 semanas para usar el modelo "con casos"
@@ -84,20 +86,34 @@ def load_bundles():
     return out
 
 
+def factor_intensidad(feats, week, bundle):
+    """Factor de calibración de la intensidad para `week` (solo modelo con casos): ver calibration.py."""
+    data = feats[feats.week <= week - pd.Timedelta(weeks=LAG_WEEKS)]
+    data = data.dropna(subset=FEATURES["casos"] + ["dengue_next"])
+    data = data[data.week > week - pd.Timedelta(weeks=LAG_WEEKS + WINDOW_WEEKS + 1)]
+    if data.empty:
+        return 1.0
+    p50 = predict_cases(bundle["regs"], data[FEATURES["casos"]].values.astype(float))["p50"]
+    obs, prd = weekly_sums(data.week.values, data.dengue_next.values, p50)
+    return round(intensity_factor(obs, prd, week), 3)
+
+
 def predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last_case):
     rows = feats[feats.week == week].set_index("district_id")
     by_family = {}
     for did in rows.index:
         by_family.setdefault(fam_of[did], []).append(did)
-    dengue = {}
+    dengue, factors = {}, {}
     for fam, ids in by_family.items():
         b = bundles[(model_id, fam)]
         X = rows.loc[ids, FEATURES[fam]].values.astype(float)
         assert not np.isnan(X).any(), f"variables incompletas para la familia {fam}"
         prob = b["clf"].predict_proba(X)[:, 1]
         q = predict_cases(b["regs"], X)
+        k = factor_intensidad(feats, week, b) if fam == "casos" else 1.0   # sin casos recientes no hay con qué calibrar
+        factors[fam] = k
         for i, did in enumerate(ids):
-            dengue[did] = (float(prob[i]), float(q["p10"][i]), float(q["p50"][i]), float(q["p90"][i]), b["base_rate"], fam)
+            dengue[did] = (float(prob[i]), float(q["p10"][i]) * k, float(q["p50"][i]) * k, float(q["p90"][i]) * k, b["base_rate"], fam)
 
     out = []
     for did, row in rows.iterrows():
@@ -121,6 +137,7 @@ def predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last
         entry = {
             "district_id": did,
             "modelo_tipo": fam,
+            "factor_intensidad": factors[fam],
             "ultimo_dato_casos": str(last_case.date()),
             "features": values,
             "riesgos": risks,
@@ -268,6 +285,8 @@ def main():
             "umbrales_mm": flood_th,
         },
         "monitoreo": read_json(REPORTS / "monitoring.json"),
+        "validacion_externa_2026": read_json(REPORTS / "validation_gore.json"),
+        "contexto_oficial_2026": read_json(ROOT / "reference" / "contexto_oficial_2026.json"),
         "reentrenamiento": read_json(REPORTS / "retrain.json"),
         "metricas": metrics,
         "contenido": {"enfermedades": DISEASE_INFO, "ciudadano": CITIZEN_ACTIONS,
@@ -278,6 +297,8 @@ def main():
     WEB_DATA.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(app, ensure_ascii=False, separators=(",", ":"), allow_nan=False)  # NaN sería JSON inválido
     (WEB_DATA / "app.json").write_text(payload, encoding="utf-8")
+    estab = establishments.build(DATA_RAW / "minsa" / "dengue_piura_gore.csv")
+    (WEB_DATA / "establecimientos.json").write_text(json.dumps(estab, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     series = json.dumps(export_series(feats, districts), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     (WEB_DATA / "series.json").write_text(series, encoding="utf-8")
     print(f"Exportado series.json ({len(series) / 1024:.0f} KB)")

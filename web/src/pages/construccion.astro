@@ -77,7 +77,9 @@ const herramientas = [
 ];
 
 const lecciones = [
-  { t: "Un dato oficial incompleto se descarta", d: `El último año del archivo nacional (2025) llega incompleto: Piura aparecía con 1 117 casos cuando el Gobierno Regional reporta 12 242. Lo descartamos y la cobertura oficial termina el ${fecha(app.datos.ultimo_caso_oficial)}.` },
+  { t: "Verificar antes de descartar", d: `Habíamos descartado el 2025 del archivo nacional por parecer incompleto (Piura: 1 117 casos frente a 12 242 del Gobierno Regional). Un informe de la DGE al 12/09/2026 lo desmintió: su columna 2025 coincide exactamente con el archivo. Corregimos y la cobertura oficial llega hasta el ${fecha(app.datos.ultimo_caso_oficial)}.` },
+  { t: "Dos fuentes que no cuadran no se mezclan", d: "El Gobierno Regional de Piura cuenta de otra manera que el CDC. En vez de forzar un empalme, lo usamos aparte: como contexto y como validación externa del modelo, con una verdad relativa." },
+  { t: "Una corrección se prueba antes de publicarse", d: "Probamos dos formas de recalibrar la intensidad; la primera empeoraba el error y se descartó. La que quedó corrige el sesgo de 2023 y 2024 y su costo (un poco más de error medio) está a la vista en la página del modelo." },
   { t: "Cruzar por código, no por nombre", d: "La Ñ llega dañada en el origen (Pariñas, Tambo Grande, Ferreñafe). Todo se une por UBIGEO." },
   { t: "Desconocido no es cero", d: "Donde no hay dato oficial el gráfico lo dice y deja el hueco; nunca lo dibuja como cero." },
   { t: "Evaluar sobre lo que el modelo no vio", d: "La prueba incluye las epidemias de 2023 y 2024. También comparamos año por año con \"sin información\": si el error no baja, el modelo no aporta." },
@@ -86,9 +88,9 @@ const lecciones = [
 ];
 
 const pruebas = [
-  { n: "38", t: "Pruebas del pipeline", d: "semanas epidemiológicas, año provisional, descarga con detección de cambios, integridad contra el archivo oficial" },
-  { n: "19", t: "Pruebas de la API", d: "predicción, lotes y optimizador de brigadas" },
-  { n: "15", t: "Pruebas de humo del sitio publicado", d: "páginas, datos sin NaN, 16 modelos ONNX, PWA e IA; corren tras cada publicación" },
+  { n: "47", t: "Pruebas del pipeline", d: "semanas epidemiológicas, cobertura del último año, descarga con detección de cambios, calibración sin fuga de información, intervalos de confianza" },
+  { n: "20", t: "Pruebas de la API", d: "predicción, lotes y optimizador de brigadas" },
+  { n: "18", t: "Pruebas de humo del sitio publicado", d: "páginas, datos sin NaN, factor de intensidad, establecimientos, reportes, 16 modelos ONNX, PWA e IA; corren tras cada publicación" },
   { n: "35", t: "Pruebas en navegador real", d: "recorridos de las páginas, instalación, uso sin conexión con el servidor apagado" },
 ];
 ---
@@ -109,7 +111,7 @@ const pruebas = [
     <h2 id="h-estado" class="chart-title"><Fragment set:html={icon("activity", 20)} /> Estado de los datos y del modelo</h2>
     <p class="small muted">Se calcula con los archivos publicados, no a mano: cambia solo cada semana.</p>
     <div class="state">
-      <div><span class="eyebrow">Último caso oficial</span><strong>{fecha(app.datos.ultimo_caso_oficial)}</strong><span class="small muted">CDC-MINSA; el año provisional se descarta</span></div>
+      <div><span class="eyebrow">Último caso oficial</span><strong>{fecha(app.datos.ultimo_caso_oficial)}</strong><span class="small muted">CDC-MINSA, semana epidemiológica {cob.dengue.ultima_semana_epidemiologica.replace("-SE", " · SE ")}</span></div>
       <div><span class="eyebrow">Casos de Piura (Gob. Regional)</span><strong>{cob.dengue_gore_piura ? fecha(cob.dengue_gore_piura.hasta) : "—"}</strong><span class="small muted">solo contexto, no entrena</span></div>
       <div><span class="eyebrow">Clima y pronóstico</span><strong>{fecha(actual.ventana_lluvia.hasta)}</strong><span class="small muted">Open-Meteo, 16 días</span></div>
       <div><span class="eyebrow">Modelo de hoy</span><strong>{actual.modelo.familia === "clima" ? "Solo clima" : "Con casos"}</strong><span class="small muted">entrenado hasta {fecha(actual.modelo.entrenado_hasta)}</span></div>
@@ -182,8 +184,10 @@ const pruebas = [
   <section class="card next" aria-labelledby="h-next">
     <h2 id="h-next" class="chart-title"><Fragment set:html={icon("arrowRight", 20)} /> Lo que sigue</h2>
     <ul>
-      <li><strong>Casos 2026</strong> de Tumbes, Piura y Lambayeque (CDC/DGE y DIRESA): activaría el modelo con casos recientes (AUC ≈ 0,93 frente a 0,72 solo con clima).</li>
-      <li><strong>Calibrar la intensidad</strong> de las epidemias grandes, que hoy el modelo subestima.</li>
+      <li><strong>Casos 2026</strong> de Tumbes, Piura y Lambayeque (CDC/DGE y DIRESA): activaría el modelo con casos recientes (AUC {app.metricas.dengue.modelo.auc} frente a {app.metricas.dengue_clima.modelo.auc} solo con clima).</li>
+      <li><strong>Calibrar la intensidad también sin casos recientes</strong>: con casos ya está corregida; con solo clima el modelo sigue quedándose corto en las epidemias grandes.</li>
+      <li><strong>Establecimientos de salud</strong> más allá de Piura y con predicción propia, si hay datos por establecimiento.</li>
+      <li><strong>Lenguas originarias:</strong> el aviso al ciudadano en quechua y awajún, traducido y validado por hablantes (no se improvisa).</li>
       <li><strong>Validar con una DIRESA</strong> los supuestos del plan de brigadas (efectividad, capacidad y costos).</li>
       <li><strong>Más departamentos:</strong> el cruce ya es por código oficial (UBIGEO).</li>
     </ul>

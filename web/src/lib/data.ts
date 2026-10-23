@@ -43,6 +43,8 @@ export interface FloodInfoData {
 export interface DistrictPrediction {
   district_id: string;
   modelo_tipo: ModeloTipo;
+  /** Reescala los casos esperados según lo que realmente pasó en las últimas semanas (1 = sin ajuste). */
+  factor_intensidad: number;
   ultimo_dato_casos: string;
   /** Solo en los replays: lo que realmente pasó en las 4 semanas siguientes (casos reales del CDC-MINSA). */
   real?: { casos_4_semanas: number; brote: boolean };
@@ -92,12 +94,15 @@ export interface AppData {
     umbrales_nivel: { alto: number; medio: number };
   };
   datos: {
-    cobertura: Record<string, { fuente: string; hasta: string; desde?: string; anio_provisional_descartado?: number | null; casos_total?: number }>;
+    cobertura: Record<string, { fuente: string; hasta: string; desde?: string; ultima_semana_epidemiologica?: string; casos_total?: number }>;
     licencia: string;
     cita: string;
     ultimo_caso_oficial: string;
   };
   metricas: any;
+  /** Cifras oficiales 2026 (CDC, Minsa, ENFEN) transcritas de sus fuentes. */
+  contexto_oficial_2026: any;
+  validacion_externa_2026: any;
   monitoreo: any;
   reentrenamiento: any;
   lluvias_extremas: { metodo: string; dias_distrito_sobre_umbral_alto_por_anio: Record<string, number>; umbrales_mm: Record<string, { medio: number; alto: number }> };

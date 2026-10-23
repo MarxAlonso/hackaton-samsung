@@ -1,0 +1,30 @@
+{
+  "nota": "Cifras oficiales transcritas de las fuentes citadas (no se calculan aquí). Sirven para contrastar lo que dice el modelo con lo que reporta el sistema de vigilancia.",
+  "dengue_departamentos": {
+    "fuente": "CDC Perú (Centro Nacional de Epidemiología, Prevención y Control de Enfermedades), informe 'Dengue al 12/09/2026', sala situacional de enfermedades metaxénicas",
+    "url": "https://app7.dge.gob.pe/maps2/shiny_metaxenicas_web/",
+    "periodo": "1 de enero al 12 de septiembre (semana epidemiológica 36)",
+    "tipo_de_caso": "confirmados y probables",
+    "nacional_variacion_pct_vs_2025": 78.93,
+    "departamentos": {
+      "Tumbes":     {"casos_2025": 970,  "casos_2026": 1757,  "variacion_pct": 81.13,  "incidencia_100k": 523.91},
+      "Piura":      {"casos_2025": 1020, "casos_2026": 10644, "variacion_pct": 943.53, "incidencia_100k": 484.94},
+      "Lambayeque": {"casos_2025": 658,  "casos_2026": 6130,  "variacion_pct": 831.61, "incidencia_100k": 443.03}
+    }
+  },
+  "nacional_se40": {
+    "fuente": "Sala situacional del Minsa, citada por La República (19 de octubre de 2026) y por la nota de prensa del Minsa (20 de octubre de 2026)",
+    "url": "https://www.gob.pe/institucion/minsa/noticias/1459653-minsa-emite-alerta-epidemiologica-por-riesgo-de-incremento-de-enfermedades-ante-el-fen",
+    "semana_epidemiologica": 40,
+    "dengue_casos": 71256, "dengue_variacion_pct": 122, "dengue_fallecidos": 75, "dengue_fallecidos_menores": 27,
+    "dengue_por_departamento": {"Piura": 13025, "La Libertad": 12780, "Lambayeque": 8973, "San Martín": 8650, "Lima": 6249},
+    "eda_episodios": 1159363, "eda_variacion_pct": 11.3,
+    "leptospirosis_casos": 13235, "leptospirosis_variacion_pct": 85.5
+  },
+  "alerta_epidemiologica": {
+    "numero": "008-2026", "fecha": "2026-10-20", "emisor": "Minsa / CDC Perú",
+    "resumen": "Alerta por riesgo de aumento de dengue, leptospirosis, diarreas, malaria y sarampión ante El Niño 2026-2027."
+  },
+  "enfen": "Comunicado Oficial ENFEN N.° 16-2026 (14 de septiembre de 2026): estado de alerta de El Niño costero; pronóstico de magnitud extraordinaria de septiembre de 2026 a enero de 2027.",
+  "emergencia": "Decreto Supremo N.° 124-2026-PCM (31 de agosto de 2026): estado de emergencia por peligro inminente ante lluvias intensas asociadas al Fenómeno El Niño; en 12 departamentos más de la mitad de los distritos."
+}
