@@ -113,6 +113,43 @@ Hay **dos modelos**. Los casos oficiales por distrito llegan con meses de retras
 - **El 2025 del archivo es válido:** coincide con el informe de la DGE al 12/09/2026. Los casos del Gobierno Regional de Piura no son comparables con los del CDC (2025: 12 242 frente a 1 117), por eso se usan aparte. Detalle en [`ml/reports/dataset_card.md`](ml/reports/dataset_card.md).
 - **Supuestos del plan de brigadas** (efectividad 30%, 15 000 habitantes por brigada, costos de ejemplo S/ 10 000 por brigada y S/ 800 por caso): editables y a validar con la DIRESA.
 
+### Fuentes y enlaces
+
+Todo lo que entrena al modelo es abierto y se descarga solo (`ml/src/ingest_cases.py` e `ml/src/ingest.py`). Ningún dato crudo se sube al repositorio: se puede repetir el entrenamiento con `bash ml/run_pipeline.sh`.
+
+**Con estos datos se entrena el modelo**
+
+| Dato | Dónde está | Archivo | Licencia |
+|---|---|---|---|
+| Dengue (un caso por fila, 2000–2025) | [Datos Abiertos, vigilancia epidemiológica de dengue](https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-dengue) | `datos_abiertos_vigilancia_dengue_2000_2025_0.csv` | ODC-By: citar al CDC-MINSA |
+| Diarreas agudas, EDA (por ubigeo y semana) | [Datos Abiertos, vigilancia de EDA](https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-enfermedad-diarreica-aguda-eda) | `…_edas_2000_2025.csv` | ODC-By |
+| Infecciones respiratorias agudas, IRA | [Datos Abiertos, vigilancia de IRA](https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiologica-de-infecciones-respiratorias-agudas-ira) | `…_iras_2000_2025.csv` | ODC-By |
+| Leptospirosis (dentro de zoonosis) | [Datos Abiertos, vigilancia de zoonosis](https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-las-zoonosis) | `…_zoonosis_2000_2025_0.csv` | ODC-By |
+| Lluvia, temperatura y humedad diarias por distrito (desde 2015) | [Open-Meteo, API histórica (reanálisis ERA5)](https://open-meteo.com/en/docs/historical-weather-api) | `https://archive-api.open-meteo.com/v1/archive` | CC BY 4.0, uso no comercial gratuito |
+| Pronóstico de 16 días | [Open-Meteo, API de pronóstico](https://open-meteo.com/en/docs) | `https://api.open-meteo.com/v1/forecast` | CC BY 4.0 |
+| Anomalía semanal del mar, región Niño 1+2 | [NOAA CPC, índices de El Niño](https://www.cpc.ncep.noaa.gov/data/indices/) | [`wksst9120.for`](https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for) | Dominio público (EE. UU.) |
+| Índice Oceánico de El Niño (ONI) | [NOAA CPC, índices de El Niño](https://www.cpc.ncep.noaa.gov/data/indices/) | [`oni.ascii.txt`](https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt) | Dominio público (EE. UU.) |
+
+La página del dataset de cada enfermedad lista el archivo vigente; el pipeline la consulta en cada corrida y solo vuelve a bajar el CSV si cambió. Los distritos se cruzan por código oficial (UBIGEO), no por nombre.
+
+**Con estos datos NO se entrena: se usan para validar, contrastar y mostrar contexto**
+
+| Dato | Dónde está | Para qué se usa |
+|---|---|---|
+| Casos de dengue de Piura 2023, 2025 y 2026 y establecimiento que notificó | [Datos Abiertos, casos de dengue en la región Piura (Gobierno Regional)](https://www.datosabiertos.gob.pe/dataset/casos-de-dengue-en-la-regi%C3%B3n-piura-gobierno-regional-piura) | Validación externa del modelo de hoy, gráficos y ranking de establecimientos. Sus conteos no son comparables con los del CDC. |
+| Totales de dengue 2026 por departamento (al 12/09/2026) | [Sala situacional de enfermedades metaxénicas, CDC Perú](https://app7.dge.gob.pe/maps2/shiny_metaxenicas_web/) y su informe "Dengue al 12/09/2026" (PDF) | Comprobar que el 2025 del archivo es válido y contrastar el ranking de hoy. Cifras transcritas en [`ml/reference/contexto_oficial_2026.json`](ml/reference/contexto_oficial_2026.json). |
+| Alerta epidemiológica N.° 008-2026 y cifras nacionales a la semana 40 | [Nota de prensa del Minsa, 20/10/2026](https://www.gob.pe/institucion/minsa/noticias/1459653-minsa-emite-alerta-epidemiologica-por-riesgo-de-incremento-de-enfermedades-ante-el-fen) | Contexto oficial 2026 en el panel de autoridad. |
+| Estado de alerta de El Niño costero | [Comunicado Oficial ENFEN N.° 16-2026](https://www.gob.pe/institucion/senamhi/informes-publicaciones/8596065-comunicado-oficial-enfen-n-16-2026) | Contexto oficial 2026. |
+| Distritos en estado de emergencia por lluvias | Decreto Supremo N.° 124-2026-PCM (31/08/2026), Diario Oficial El Peruano | Contexto oficial 2026. |
+
+**Otros datos**
+
+- **Golpe de calor:** simulado a partir de la temperatura máxima real, porque no existe una fuente abierta por distrito. El sitio lo marca como simulado.
+- **Población, altitud y acceso a agua por red de cada distrito:** valores aproximados (orden de magnitud del INEI), sin enlace directo. Conviene reemplazarlos por el censo oficial.
+- **Costos y efectividad del plan de brigadas:** supuestos de ejemplo, no datos.
+
+**Cómo citar:** CDC-MINSA (Centro Nacional de Epidemiología, Prevención y Control de Enfermedades), Plataforma Nacional de Datos Abiertos; Gobierno Regional de Piura; Open-Meteo (reanálisis ERA5 del ECMWF/Copernicus); NOAA Climate Prediction Center.
+
 ## Arquitectura
 
 ```mermaid
