@@ -1,0 +1,176 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Acc from "../components/Acc.astro";
+import Help from "../components/Help.astro";
+import { icon } from "../lib/icons";
+import app from "../../public/data/app.json";
+import { PRODUCTOS, LIMITES_IMPACTO } from "../lib/impacto_alimentos";
+
+const hoy: any = app.escenarios.actual;
+const byId: Record<string, any> = Object.fromEntries(app.distritos.map((d: any) => [d.district_id, d]));
+const HAB_POR_BRIGADA = 15000; // el mismo supuesto de ejemplo del plan de acción
+
+const filas = hoy.distritos.map((p: any) => {
+  const d = byId[p.district_id];
+  const r = p.riesgos.dengue;
+  const sinAgua = Math.round(d.population * (1 - d.water_access));
+  return {
+    id: p.district_id, distrito: d.district, depto: d.department, poblacion: d.population, sinAgua,
+    lluvia: p.inundacion.nivel as "alto" | "medio" | "bajo", mm: p.inundacion.lluvia_max_3d_mm as number,
+    p50: r.casos_p50 ?? 0, p10: r.casos_p10 ?? 0, p90: r.casos_p90 ?? 0,
+    pruebas: p.recursos.pruebas as number, camas: p.recursos.camas as number,
+    brigadas: Math.ceil(d.population / HAB_POR_BRIGADA), factor: p.factor_intensidad as number,
+  };
+});
+const RANK = { alto: 2, medio: 1, bajo: 0 } as const;
+filas.sort((a: any, b: any) => RANK[b.lluvia] - RANK[a.lluvia] || b.mm - a.mm || b.sinAgua - a.sinAgua);
+
+const sum = (f: (x: any) => number, list = filas) => list.reduce((a: number, x: any) => a + f(x), 0);
+const conLluvia = filas.filter((x: any) => x.lluvia !== "bajo");
+const nf = (v: number) => Math.round(v).toLocaleString("es-PE");
+const etiqueta: Record<string, string> = { alto: "Lluvia extrema", medio: "Lluvia intensa", bajo: "Sin alerta" };
+const ajuste = hoy.ajuste_intensidad;
+const deptos = ["Tumbes", "Piura", "Lambayeque"];
+const porDepto = Object.fromEntries(deptos.map((d) => {
+  const l = filas.filter((x: any) => x.depto === d);
+  return [d, { n: l.length, conLluvia: l.filter((x: any) => x.lluvia !== "bajo").length, pob: sum((x) => x.poblacion, l) }];
+}));
+const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
+---
+
+<Layout title="Alimentos y suministros" active="impacto" wide description="Qué alimentos, cultivos y suministros puede afectar El Niño en los distritos de Tumbes, Piura y Lambayeque.">
+  <section class="head">
+    <div>
+      <h1>Alimentos y suministros <Help k="panel_impacto" /></h1>
+      <p class="muted">Qué puede afectar El Niño en los 47 distritos mapeados: agua, suministros de salud y los alimentos y cultivos de la costa norte.</p>
+    </div>
+  </section>
+
+  <section class="kpis">
+    <div class="card kpi"><span class="ico-box brand"><Fragment set:html={icon("rain", 22)} /></span><div><span class="eyebrow">Con lluvia intensa o extrema<Help k="lluvias_extremas" label="lluvia" /></span><strong>{conLluvia.length} de {filas.length}</strong><span class="small muted">distritos, según el pronóstico de 16 días</span></div></div>
+    <div class="card kpi"><span class="ico-box brand"><Fragment set:html={icon("droplet", 22)} /></span><div><span class="eyebrow">Sin agua por red en esos distritos<Help k="exposicion_agua" label="sin agua por red" /></span><strong>{nf(sum((x) => x.sinAgua, conLluvia))}</strong><span class="small muted">personas, de {nf(sum((x) => x.poblacion, conLluvia))} que viven allí</span></div></div>
+    <div class="card kpi"><span class="ico-box brand"><Fragment set:html={icon("mosquito", 22)} /></span><div><span class="eyebrow">Casos de dengue esperados<Help k="casos_esperados" label="casos esperados" /></span><strong>{nf(sum((x) => x.p50))}</strong><span class="small muted">en 4 semanas · rango {nf(sum((x) => x.p10))} a {nf(sum((x) => x.p90))}</span></div></div>
+    <div class="card kpi"><span class="ico-box brand"><Fragment set:html={icon("hospital", 22)} /></span><div><span class="eyebrow">Suministros de salud sugeridos<Help k="suministros" label="suministros" /></span><strong>{nf(sum((x) => x.pruebas))} pruebas</strong><span class="small muted">y {nf(sum((x) => x.camas))} camas de observación</span></div></div>
+  </section>
+
+  {ajuste?.por_departamento && (
+    <p class="notice small">
+      <strong>Cómo se calculan los casos esperados hoy:</strong> el modelo usa solo clima y se corrige con el acumulado oficial del año por departamento (informe del CDC, semana {ajuste.informe.semana_epidemiologica}):
+      {Object.entries(ajuste.por_departamento).map(([d, v]: [string, any], i: number) => <>{i ? ", " : " "}{d} ×{v.factor.toFixed(1)}</>)}.
+      Aun así tiende a quedarse corto: estas cantidades son un piso razonable, no un techo.
+    </p>
+  )}
+
+  <Acc open title="Los distritos mapeados: lluvia, agua y suministros" icon="map" help="suministros"
+       summary={`${conLluvia.length} distritos con lluvia intensa o extrema pronosticada; el resto, sin alerta de lluvia`}>
+    <div class="filters no-print">
+      <label>Departamento
+        <select id="f-dept"><option value="">Todos</option>{deptos.map((d) => <option>{d}</option>)}</select>
+      </label>
+      <label class="check"><input type="checkbox" id="f-lluvia" /> Solo con lluvia intensa o extrema</label>
+    </div>
+    <div class="table-wrap">
+      <table id="tabla">
+        <thead>
+          <tr><th>Distrito</th><th>Lluvia pronosticada</th><th class="num">Población</th><th class="num">Sin agua por red</th><th class="num">Casos esperados<br /><span class="small muted">4 semanas (P50)</span></th><th class="num">Pruebas rápidas</th><th class="num">Camas</th><th class="num">Brigadas<br /><span class="small muted">cobertura total</span></th></tr>
+        </thead>
+        <tbody>
+          {filas.map((x: any) => (
+            <tr data-depto={x.depto} data-lluvia={x.lluvia}>
+              <td><a href={`/autoridad?escenario=actual&d=${x.id}`}><strong>{x.distrito}</strong></a><br /><span class="small muted">{x.depto}</span></td>
+              <td><span class={`badge lvl-${x.lluvia}`}>{etiqueta[x.lluvia]}</span><br /><span class="small muted">{nf(x.mm)} mm en 3 días</span></td>
+              <td class="num">{nf(x.poblacion)}</td>
+              <td class="num">{nf(x.sinAgua)}</td>
+              <td class="num">{nf(x.p50)}<br /><span class="small muted">{nf(x.p10)} a {nf(x.p90)}</span></td>
+              <td class="num">{nf(x.pruebas)}</td>
+              <td class="num">{nf(x.camas)}</td>
+              <td class="num">{nf(x.brigadas)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr><td><strong id="t-label">Total</strong></td><td></td><td class="num" id="t-pob"></td><td class="num" id="t-agua"></td><td class="num" id="t-casos"></td><td class="num" id="t-pruebas"></td><td class="num" id="t-camas"></td><td class="num" id="t-brig"></td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="small muted">Reglas del sitio (de ejemplo, a validar con la DIRESA): pruebas rápidas = 1,5 veces los casos del escenario pesimista (P90); camas de observación = 4% de ese mismo valor; una brigada cubre {nf(HAB_POR_BRIGADA)} habitantes. «Sin agua por red» usa el acceso a agua por red de cada distrito, que es aproximado (orden de magnitud del INEI): son las personas que dependen de otras fuentes y cuyo abastecimiento se contamina o se corta con inundaciones.</p>
+  </Acc>
+
+  <section class="prod-head">
+    <h2>Alimentos y cultivos en riesgo <Help k="alimentos" /></h2>
+    <p class="muted small">Cada dato trae su fuente. Los distritos mapeados de cada departamento se cuentan con nuestros propios datos de lluvia y población.</p>
+  </section>
+
+  <div class="prods">
+    {PRODUCTOS.map((p, i) => {
+      const m = p.departamentos.map((d) => ({ d, ...porDepto[d] }));
+      return (
+        <Acc open={i === 0} title={p.nombre} icon={p.icono} class={`prod ${p.tipo}`}
+             summary={`${p.departamentos.join(", ")} · ${p.tipo === "oficial" ? "fuente oficial" : "estimación de terceros"}${p.dato ? " · " + p.dato : ""}`}>
+          <p>{p.riesgo}</p>
+          {p.dato && <p class="dato"><Fragment set:html={icon("activity", 16)} /> {p.dato}</p>}
+          <p class="small"><strong>En nuestros distritos mapeados:</strong> {m.map((x, k) => <>{k ? " · " : ""}{x.d}: {x.n} distritos, {x.conLluvia} con lluvia intensa o extrema pronosticada</>)}.</p>
+          <ul class="fuentes small">
+            {p.fuentes.map((f) => (
+              <li><a href={f.url} target="_blank" rel="noopener">{f.medio}, {fecha(f.fecha)}: {f.titulo}</a> <span class="muted">(cifras de {f.origen})</span></li>
+            ))}
+          </ul>
+          {p.tipo === "estimacion" && <p class="small muted">Estimación de terceros citada por la prensa: sirve para dimensionar el riesgo, no es un dato oficial.</p>}
+        </Acc>
+      );
+    })}
+  </div>
+
+  <Acc title="Qué no sabemos" icon="info" summary="No hay datos por distrito de cultivos; no se incluye pesca; los suministros son reglas de ejemplo">
+    <ul class="small">{LIMITES_IMPACTO.map((l) => <li>{l}</li>)}</ul>
+  </Acc>
+</Layout>
+
+<script>
+  const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const rows = [...document.querySelectorAll<HTMLTableRowElement>("#tabla tbody tr")];
+  const n = (td: HTMLTableCellElement) => Number(td.firstChild?.textContent?.replace(/[^\d]/g, "") || 0);
+  function apply() {
+    const dept = $<HTMLSelectElement>("#f-dept").value, onlyRain = $<HTMLInputElement>("#f-lluvia").checked;
+    const t = { pob: 0, agua: 0, casos: 0, pruebas: 0, camas: 0, brig: 0 };
+    let shown = 0;
+    for (const r of rows) {
+      const ok = (!dept || r.dataset.depto === dept) && (!onlyRain || r.dataset.lluvia !== "bajo");
+      r.hidden = !ok;
+      if (!ok) continue;
+      shown++;
+      const c = r.cells;
+      t.pob += n(c[2]); t.agua += n(c[3]); t.casos += n(c[4]); t.pruebas += n(c[5]); t.camas += n(c[6]); t.brig += n(c[7]);
+    }
+    const f = (v: number) => v.toLocaleString("es-PE");
+    $("#t-label").textContent = `Total (${shown} distritos)`;
+    $("#t-pob").textContent = f(t.pob); $("#t-agua").textContent = f(t.agua); $("#t-casos").textContent = f(t.casos);
+    $("#t-pruebas").textContent = f(t.pruebas); $("#t-camas").textContent = f(t.camas); $("#t-brig").textContent = f(t.brig);
+  }
+  $("#f-dept").addEventListener("change", apply);
+  $("#f-lluvia").addEventListener("change", apply);
+  apply();
+</script>
+
+<style>
+  .kpis { margin-bottom: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .kpi { display: flex; gap: 12px; align-items: center; padding: 16px; }
+  .kpi > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .kpi strong { font-size: 1.45rem; }
+  .filters { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; font-weight: 600; color: var(--text-2); }
+  .filters label.check { flex-direction: row; align-items: center; gap: 8px; padding-bottom: 8px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 8px; border-top: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-2); font-weight: 600; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tfoot td { border-top: 2px solid var(--border); background: var(--surface-2); font-weight: 700; }
+  tr[hidden] { display: none; }
+  .prod-head { margin: 24px 0 10px; }
+  .prod-head h2 { margin: 0 0 4px; }
+  :global(.prod.oficial) { border-left: 5px solid var(--series-1); }
+  :global(.prod.estimacion) { border-left: 5px solid var(--warning); }
+  .dato { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; font-weight: 600; }
+  .fuentes { padding-left: 18px; display: grid; gap: 4px; }
+</style>

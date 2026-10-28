@@ -1,0 +1,106 @@
+{
+  "regla": "casos del departamento en el año × participación del piloto, contra lo previsto por el modelo para esas semanas; factor acotado a 0.5–40 y elevado a 0.6 (ajuste amortiguado)",
+  "rezago_semanas": 5,
+  "prueba_2022_2025": {
+    "por_anio": [
+      {
+        "anio": 2022,
+        "factor_mediano": 4.23,
+        "antes": {
+          "razon_observado_previsto": 4.52,
+          "mae_por_distrito": 12.5,
+          "cobertura_p10_p90": 0.788
+        },
+        "despues": {
+          "razon_observado_previsto": 1.11,
+          "mae_por_distrito": 12.7,
+          "cobertura_p10_p90": 0.939
+        }
+      },
+      {
+        "anio": 2023,
+        "factor_mediano": 2.92,
+        "antes": {
+          "razon_observado_previsto": 7.68,
+          "mae_por_distrito": 181.3,
+          "cobertura_p10_p90": 0.34
+        },
+        "despues": {
+          "razon_observado_previsto": 2.11,
+          "mae_por_distrito": 149.2,
+          "cobertura_p10_p90": 0.612
+        }
+      },
+      {
+        "anio": 2024,
+        "factor_mediano": 6.9,
+        "antes": {
+          "razon_observado_previsto": 19.02,
+          "mae_por_distrito": 28.3,
+          "cobertura_p10_p90": 0.499
+        },
+        "despues": {
+          "razon_observado_previsto": 3.23,
+          "mae_por_distrito": 28.2,
+          "cobertura_p10_p90": 0.824
+        }
+      },
+      {
+        "anio": 2025,
+        "factor_mediano": 0.87,
+        "antes": {
+          "razon_observado_previsto": 0.33,
+          "mae_por_distrito": 7.3,
+          "cobertura_p10_p90": 0.96
+        },
+        "despues": {
+          "razon_observado_previsto": 0.29,
+          "mae_por_distrito": 8.3,
+          "cobertura_p10_p90": 0.97
+        }
+      }
+    ],
+    "total": {
+      "antes": {
+        "razon_observado_previsto": 6.45,
+        "mae_por_distrito": 58.2,
+        "cobertura_p10_p90": 0.64
+      },
+      "despues": {
+        "razon_observado_previsto": 1.98,
+        "mae_por_distrito": 50.3,
+        "cobertura_p10_p90": 0.834
+      }
+    }
+  },
+  "hoy": {
+    "informe": {
+      "semana_epidemiologica": 38,
+      "anio": 2026,
+      "url": "https://www.dge.gob.pe/portal/docs/vigilancia/sala/2026/SE38/dengue.pdf"
+    },
+    "por_departamento": {
+      "Piura": {
+        "factor": 2.356,
+        "casos_departamento_2026": 11701,
+        "participacion_piloto": 0.881,
+        "casos_estimados_piloto": 10304,
+        "casos_previstos_por_el_modelo": 2456
+      },
+      "Tumbes": {
+        "factor": 1.378,
+        "casos_departamento_2026": 2002,
+        "participacion_piloto": 0.936,
+        "casos_estimados_piloto": 1875,
+        "casos_previstos_por_el_modelo": 1090
+      },
+      "Lambayeque": {
+        "factor": 4.97,
+        "casos_departamento_2026": 7065,
+        "participacion_piloto": 0.785,
+        "casos_estimados_piloto": 5546,
+        "casos_previstos_por_el_modelo": 365
+      }
+    }
+  }
+}

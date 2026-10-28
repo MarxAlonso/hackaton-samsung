@@ -53,6 +53,18 @@ El modelo ordena bien los distritos pero se quedaba corto en las epidemias: con 
 
 Costo: el error medio sube de 30,6 a 32,6 casos (en años tranquilos el ajuste a veces se pasa). Se probó antes una versión con la mediana de los residuos: corregía el sesgo pero empeoraba el error y la cobertura, y se descartó. **Con solo clima no hay resultados recientes para calibrar**: su sesgo sigue ahí y el sitio lo advierte.
 
+## Ajuste con el acumulado oficial del año (solo clima, el que se aplica hoy)
+
+Con solo clima no hay resultados de las últimas semanas con qué calibrar, pero el CDC publica cada semana el total de casos del año por departamento. Se estima cuántos casos tuvo el piloto en lo que va del año (casos del departamento por la participación del piloto en los 3 años anteriores) y se compara con lo que el modelo había previsto para esas semanas: `factor = ((estimado + 20) / (previsto + 20)) ^ 0,6`, con la razón cruda acotada a 0,5 a 40. Se prueba en el pasado (2022 a 2025) usando solo lo que se sabía en cada semana, con un rezago de 5 semanas.
+
+| | Antes | Después |
+|---|---|---|
+| Observado ÷ previsto | 6,45 | 1,98 |
+| Error por distrito (casos) | 58,2 | 50,3 |
+| Casos reales dentro de P10–P90 | 64% | 83% |
+
+El exponente 0,6 es un compromiso: con el factor completo el sesgo bajaba a 0,8, pero el error por distrito subía a 77,5 y el rango quedaba demasiado ancho. Se probaron también el factor con solo la última semana y una combinación de ambos: rindieron parecido, así que se mantuvo el más simple. **Límite:** corrige la magnitud, no el reparto entre distritos. Factores de hoy (informe de la semana 38): Piura ×2,4, Tumbes ×1,4, Lambayeque ×5,0. Aun así, la estimación de hoy queda por debajo de lo que el CDC reporta cada semana. Detalle en `ml/reports/calibration_ytd.json`.
+
 ## Validación externa con datos de 2026 (Piura, Gobierno Regional)
 
 El modelo de hoy (solo clima) se probó con casos que nunca vio, de enero a mayo de 2026 en 23 distritos de Piura. Como los conteos del Gobierno Regional no son comparables con los del CDC, "actividad alta" es relativa (casos de las próximas 4 semanas sobre el percentil 75 del propio distrito): AUC 0,685 contra 0,579 del calendario; correlación de rangos entre casos previstos y notificados 0,70 (0,61 semana a semana entre distritos). Se probó además agregar los casos recientes del Gobierno Regional como señal de arrastre: AUC 0,717 (+0,032, intervalo −0,046 a +0,110, incluye el cero), así que **no se integra** al modelo. Detalle en `ml/reports/validation_gore.json`.
@@ -60,7 +72,7 @@ El modelo de hoy (solo clima) se probó con casos que nunca vio, de enero a mayo
 ## Lectura honesta
 
 - Con casos recientes funciona bien. Aun calibrado, el error medio no baja: la calibración arregla el sesgo, no la dispersión.
-- **Solo clima ordena qué distritos vigilar primero, pero no calcula cuántos casos habrá**: su Brier es igual o peor que predecir la tasa base en 2024 y 2025, y el rango P10–P90 acierta 60%. Por eso su confianza nunca pasa de "media".
+- **Solo clima ordena qué distritos vigilar primero y, con el ajuste del acumulado oficial, da un orden de magnitud; no calcula con precisión cuántos casos habrá**: su Brier es igual o peor que predecir la tasa base en 2024 y 2025, y el rango P10–P90 acierta 60%. Por eso su confianza nunca pasa de "media".
 - **El contexto oficial de 2026 lo confirma**: el CDC reporta Piura +944% y Lambayeque +832% frente a 2025 (al 12 de septiembre), mientras que el modelo de hoy marca solo 2 distritos en riesgo alto. Es la subestimación esperable de un modelo solo clima.
 - Conseguir los casos 2026 por distrito (Tumbes, Lambayeque; Piura ya existe pero no es comparable) es lo que más mejoraría el sistema.
 

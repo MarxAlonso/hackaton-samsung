@@ -32,6 +32,7 @@ const PAGES = {
   "/ciudadano/": "Soy ciudadano",
   "/autoridad/": "Panel de priorización",
   "/plan/": "Plan de acción",
+  "/impacto/": "Alimentos y suministros",
   "/modelo/": "Cómo funciona el modelo",
   "/construccion/": "Cómo se construyó",
   "/demo/": "Demo guiada",
@@ -75,14 +76,20 @@ await check("probabilidades dentro de [0, 1] y rangos ordenados", async () => {
   }
 });
 
-await check("factor de intensidad válido en los replays y neutro hoy", async () => {
+await check("factor de intensidad válido (replays con casos; hoy, ajuste con el acumulado oficial), casos 2026 del CDC y datos", async () => {
   for (const [k, esc] of Object.entries(app.escenarios)) {
     for (const d of esc.distritos) {
-      must(Number.isFinite(d.factor_intensidad) && d.factor_intensidad >= 0.5 && d.factor_intensidad <= 2, `${k}/${d.district_id}: factor ${d.factor_intensidad}`);
-      if (d.modelo_tipo === "clima") must(d.factor_intensidad === 1, "el modelo solo clima no se calibra");
+      // con casos recientes el factor sale de las últimas 4 semanas (0,5 a 2); solo con clima, del acumulado oficial (hasta 40^0,6 ≈ 9,1)
+      const tope = d.modelo_tipo === "clima" ? 9.2 : 2;
+      must(Number.isFinite(d.factor_intensidad) && d.factor_intensidad >= 0.5 && d.factor_intensidad <= tope, `${k}/${d.district_id}: factor ${d.factor_intensidad}`);
+      if (k !== "actual") must(d.modelo_tipo === "casos", "un replay no puede usar información de 2026");
     }
   }
   must(app.contexto_oficial_2026?.dengue_departamentos?.departamentos?.Piura?.casos_2026 > 0, "falta el contexto oficial 2026");
+  must(app.escenarios.actual.ajuste_intensidad?.por_departamento?.Piura?.factor > 1, "falta el ajuste con el acumulado oficial");
+  const cdc = app.dengue_2026_cdc;
+  must(cdc?.meta?.semana_epidemiologica >= 30 && Object.keys(cdc.distritos).length >= 15, "faltan los casos 2026 por distrito del CDC");
+  must(cdc.departamentos.Piura.casos_2026 > cdc.departamentos.Piura.casos_2025, "los casos 2026 de Piura deben superar los de 2025");
   must(app.metricas.dengue.intervalos_95?.auc?.length === 2, "faltan los intervalos de confianza");
 });
 

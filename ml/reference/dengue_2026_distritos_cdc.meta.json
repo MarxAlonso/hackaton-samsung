@@ -1,0 +1,10 @@
+{
+ "fuente": "CDC Perú, sala situacional de dengue (informe semanal en PDF)",
+ "url": "https://www.dge.gob.pe/portal/docs/vigilancia/sala/2026/SE38/dengue.pdf",
+ "anio": 2026,
+ "semana_epidemiologica": 38,
+ "descargado": "2026-10-28",
+ "distritos_en_el_informe": 30,
+ "distritos_del_piloto_con_dato": 24,
+ "nota": "Casos acumulados del año y de la misma semana del año anterior, por distrito. Confirmados y probables."
+}

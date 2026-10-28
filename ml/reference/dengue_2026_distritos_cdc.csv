@@ -1,0 +1,48 @@
+district_id,district,semana_epidemiologica,department,casos_2025,tia_2025,casos_2026,tia_2026,casos_ultima_semana,defunciones_2026,letalidad_pct
+tum-tumbes,Tumbes,38,Tumbes,521.0,456.92,869.0,703.99,52.0,0.0,0.0
+tum-corrales,Corrales,38,Tumbes,115.0,387.79,240.0,748.41,9.0,0.0,0.0
+tum-lacruz,La Cruz,38,Tumbes,7.0,56.25,38.0,281.59,2.0,0.0,0.0
+tum-sanjacinto,San Jacinto,38,Tumbes,31.0,308.58,101.0,927.12,4.0,0.0,0.0
+tum-pampas,Pampas de Hospital,38,Tumbes,70.0,807.75,58.0,618.53,0.0,0.0,0.0
+tum-zarumilla,Zarumilla,38,Tumbes,14.0,34.82,150.0,343.35,19.0,0.0,0.0
+tum-aguasverdes,Aguas Verdes,38,Tumbes,7.0,21.79,181.0,517.2,8.0,0.0,0.0
+tum-papayal,Papayal,38,Tumbes,17.0,145.42,140.0,1101.67,1.0,0.0,0.0
+tum-zorritos,Zorritos,38,Tumbes,50.0,250.61,188.0,865.2,6.0,0.0,0.0
+tum-puntasal,Canoas de Punta Sal,38,Tumbes,,,,,,,
+piu-piura,Piura,38,Piura,212.0,105.19,412.0,203.55,26.0,0.0,0.0
+piu-castilla,Castilla,38,Piura,209.0,105.6,612.0,307.42,59.0,0.0,0.0
+piu-26oct,Veintiséis de Octubre,38,Piura,93.0,46.56,641.0,318.8,66.0,1.0,0.16
+piu-catacaos,Catacaos,38,Piura,,,,,,,
+piu-curamori,Cura Mori,38,Piura,,,,,,,
+piu-laarena,La Arena,38,Piura,,,,,,,
+piu-launion,La Unión,38,Piura,,,,,,,
+piu-tallan,El Tallán,38,Piura,,,,,,,
+piu-sullana,Sullana,38,Piura,139.0,68.41,1748.0,856.78,109.0,0.0,0.0
+piu-bellavista,Bellavista,38,Piura,20.0,39.98,488.0,970.18,47.0,0.0,0.0
+piu-escudero,Ignacio Escudero,38,Piura,,,,,,,
+piu-marcavelica,Marcavelica,38,Piura,,,,,,,
+piu-querecotillo,Querecotillo,38,Piura,,,,,,,
+piu-paita,Paita,38,Piura,,,,,,,
+piu-parinas,Pariñas (Talara),38,Piura,,,,,,,
+piu-mancora,Máncora,38,Piura,,,,,,,
+piu-chulucanas,Chulucanas,38,Piura,18.0,20.47,2165.0,2463.05,42.0,2.0,0.09
+piu-morropon,Morropón,38,Piura,5.0,31.49,706.0,4444.16,13.0,0.0,0.0
+piu-tambogrande,Tambogrande,38,Piura,42.0,32.76,2433.0,1889.11,112.0,3.0,0.12
+piu-laslomas,Las Lomas,38,Piura,,,,,,,
+piu-sechura,Sechura,38,Piura,,,,,,,
+piu-ayabaca,Ayabaca,38,Piura,,,,,,,
+piu-huancabamba,Huancabamba,38,Piura,,,,,,,
+lam-chiclayo,Chiclayo,38,Lambayeque,85.0,29.0,2024.0,686.53,156.0,4.0,0.2
+lam-jlo,José Leonardo Ortiz,38,Lambayeque,50.0,29.94,874.0,521.2,86.0,0.0,0.0
+lam-lavictoria,La Victoria,38,Lambayeque,12.0,11.91,301.0,295.34,15.0,0.0,0.0
+lam-pimentel,Pimentel,38,Lambayeque,,,,,,,
+lam-tuman,Tumán,38,Lambayeque,,,,,,,
+lam-patapo,Pátapo,38,Lambayeque,,,,,,,
+lam-lambayeque,Lambayeque,38,Lambayeque,41.0,49.59,243.0,290.65,19.0,0.0,0.0
+lam-morrope,Mórrope,38,Lambayeque,,,,,,,
+lam-tucume,Túcume,38,Lambayeque,,,,,,,
+lam-illimo,Íllimo,38,Lambayeque,,,,,,,
+lam-jayanca,Jayanca,38,Lambayeque,10.0,44.55,292.0,1287.65,15.0,0.0,0.0
+lam-motupe,Motupe,38,Lambayeque,41.0,109.39,818.0,2158.6,2.0,1.0,0.12
+lam-olmos,Olmos,38,Lambayeque,302.0,504.34,365.0,603.92,7.0,1.0,0.27
+lam-ferrenafe,Ferreñafe,38,Lambayeque,,,,,,,

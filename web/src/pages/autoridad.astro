@@ -183,10 +183,25 @@ import Help from "../components/Help.astro";
     return `<div class="card kpi"><span class="ico-box brand">${icon("target", 22)}</span><div><span class="eyebrow">Acierto de la alerta${helpBtn("acierto_alerta", "Acierto de la alerta")}</span><strong>${right} de ${withReal.length}</strong><span class="small muted">distritos bien clasificados (brote sí/no); casos reales dentro del rango en ${inside}</span></div></div>`;
   }
 
+  /** Casos 2026 del distrito según el informe semanal del CDC (solo para «Hoy»). */
+  function cdcBox(id: string) {
+    const cdc = app.dengue_2026_cdc;
+    if (scenarioSel.value !== "actual" || !cdc) return "";
+    const se = cdc.meta.semana_epidemiologica, c = cdc.distritos[id];
+    if (!c) {
+      return `<p class="data-note">${icon("info", 18)}<span><strong>Casos 2026 (CDC):</strong> este distrito no figura entre los de mayor número de casos del informe de la semana ${se}; sus casos se agrupan en «demás distritos» ${helpBtn("casos_2026_cdc", "casos 2026")}.</span></p>`;
+    }
+    return `<p class="data-note">${icon("activity", 18)}<span><strong>Casos 2026 notificados (CDC, hasta la semana ${se}):</strong> ${fmt(c.casos_2026)} (${fmt(c.tia_2026)} por 100 mil hab.) frente a ${fmt(c.casos_2025)} en el mismo periodo de 2025; ${fmt(c.casos_ultima_semana)} en la última semana${c.defunciones_2026 ? `; ${c.defunciones_2026} defunciones` : ""} ${helpBtn("casos_2026_cdc", "casos 2026")}.</span></p>`;
+  }
+
   /** Aviso bajo el titular del distrito: de dónde sale la cifra o qué pasó realmente. */
   function dataNote(p: DistrictPrediction) {
     if (p.modelo_tipo === "clima") {
-      return `<p class="data-note warn">${icon("info", 18)}<span><strong>Estimación solo con clima.</strong> El último caso oficial de este distrito es de ${weekLabel(p.ultimo_dato_casos)}: sin casos recientes el modelo ordena bien los distritos por riesgo, pero calcula mal cuántos casos habrá. Úsala para priorizar la vigilancia, no como cifra exacta.</span></p>`;
+      const aj = scenario().ajuste_intensidad;
+      const dep = district(p.district_id).department;
+      const ajuste = aj?.por_departamento && p.factor_intensidad > 1.05
+        ? ` Los casos esperados están <strong>ajustados ×${p.factor_intensidad.toFixed(1)}</strong> con el acumulado oficial de ${dep} (CDC, semana ${aj.informe.semana_epidemiologica}) ${helpBtn("ajuste_acumulado", "ajuste")}, porque sin ajuste el modelo se queda muy corto.` : "";
+      return `<p class="data-note warn">${icon("info", 18)}<span><strong>Estimación solo con clima.</strong> El último caso oficial de este distrito es de ${weekLabel(p.ultimo_dato_casos)}: sin casos recientes el modelo ordena bien los distritos por riesgo, pero calcula mal cuántos casos habrá.${ajuste} Úsala para priorizar la vigilancia, no como cifra exacta.</span></p>`;
     }
     if (p.real) {
       const r = p.riesgos.dengue, inside = p.real.casos_4_semanas >= (r.casos_p10 ?? 0) && p.real.casos_4_semanas <= (r.casos_p90 ?? 0);
@@ -283,6 +298,7 @@ import Help from "../components/Help.astro";
           <h2>${d.district} ${badge(r.nivel)}</h2>
           <div id="headline">${headline(d.district, r)}</div>
           ${dataNote(p)}
+          ${cdcBox(id)}
         </div>
         <div class="climate-chips">
           <span class="chip-c">${icon("rain", 16)} ${fmt(p.clima.lluvia_2_a_6sem)} mm <small>lluvia 2–6 sem. atrás</small></span>
@@ -489,7 +505,8 @@ import Help from "../components/Help.astro";
 
   Promise.all([loadData(), loadSeries()]).then(([data, ser]) => {
     app = data; series = ser;
-    renderOfficialContext($("#official"), app.contexto_oficial_2026, app.metricas.dengue_clima.razon_observado_previsto_por_anio);
+    renderOfficialContext($("#official"), app.contexto_oficial_2026, app.metricas.dengue_clima.razon_observado_previsto_por_anio, app.dengue_2026_cdc,
+      Object.fromEntries(app.distritos.map((x) => [x.district_id, x.district])), app.escenarios.actual.ajuste_intensidad);
     refresh();
     const sc = scenario();
     warmup(sc.distritos[0].modelo_tipo, sc.modelo.id);

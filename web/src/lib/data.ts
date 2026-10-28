@@ -102,6 +102,9 @@ export interface AppData {
   metricas: any;
   /** Cifras oficiales 2026 (CDC, Minsa, ENFEN) transcritas de sus fuentes. */
   contexto_oficial_2026: any;
+  /** Casos 2026 por distrito del informe semanal del CDC (los distritos con más casos de cada departamento). */
+  dengue_2026_cdc: any;
+  calibracion_acumulado_oficial: any;
   validacion_externa_2026: any;
   monitoreo: any;
   reentrenamiento: any;

@@ -97,6 +97,11 @@ import Help from "../components/Help.astro";
     </div>
   </section>
 
+  <Acc id="econ-acc" title="Impacto económico: ¿vale la pena?" icon="coins" help="ahorro_neto" open
+       summary='<span id="econ-sum">Escribe los costos de ejemplo para ver cuánto se ahorra</span>'>
+    <div id="econ-body"></div>
+  </Acc>
+
   <Acc title="Dónde poner cada brigada" icon="layers" open summary="Distritos en orden de prioridad, con las brigadas asignadas y la cobertura">
     <p class="chart-sub">En orden de prioridad. "Cobertura" es qué parte del distrito alcanzan las brigadas asignadas.</p>
     <div class="table-wrap"><table class="plan-table" id="plan-table"></table></div>
@@ -164,6 +169,49 @@ import Help from "../components/Help.astro";
       kpi("map", "Distritos cubiertos", `${t.distritos_cubiertos} de ${total}`, `${t.brigadas} de ${brig.value} brigadas usadas`) +
       kpi("trendingUp", "Frente a repartir parejo", mejora == null ? "—" : `${mejora >= 0 ? "+" : ""}${Math.round(mejora)}%`, `${extra >= 0 ? "+" : ""}${fmt(extra)} casos evitados más`, "plan_brigadas") +
       (res.economia ? kpi("coins", "Ahorro neto estimado", soles(res.economia.neto), `${res.economia.ahorro_por_sol} soles ahorrados por cada sol invertido (supuestos de ejemplo)`, "ahorro_neto") : "");
+  }
+
+  /** Calculadora de impacto económico: gasto, ahorro, retorno, equilibrio y sensibilidad (todo con supuestos editables). */
+  function renderEconomics(res: OptResult, q: "p10" | "p50" | "p90") {
+    const body = $("#econ-body"), sum = $("#econ-sum");
+    const eco = res.economia;
+    if (!eco) {
+      body.innerHTML = `<p class="muted">Completa el costo de una brigada y el costo por caso en «Supuestos económicos» para ver el impacto.</p>`;
+      sum.textContent = "Escribe los costos de ejemplo para ver cuánto se ahorra";
+      return;
+    }
+    const t = res.optimo.total, evit = t[`evitados_${q}`];
+    const e = Number(efe.value) / 100, costoCaso = Number(cCaso.value), gasto = eco.gasto;
+    const porCaso = evit > 0 ? gasto / evit : null;
+    const equilibrio = eco.ahorro > 0 ? e * (gasto / eco.ahorro) : null;   // los casos evitados crecen en proporción a la efectividad
+    const extra = (evit - res.estrategias.parejo[`evitados_${q}`]) * costoCaso;
+    const retorno = gasto ? eco.ahorro / gasto : null;
+    // Una efectividad mayor a 100% no existe: en ese caso el plan no se paga con estos costos, y así se dice
+    const eqTxt = equilibrio == null ? "—" : equilibrio > 1 ? "más de 100%" : `${Math.ceil(equilibrio * 100)}%`;
+    const piso = scenarioSel.value === "actual" && app.escenarios.actual.modelo.familia === "clima";
+    const tile = (label: string, value: string, sub: string, help = "") => `<div class="tile"><span class="eyebrow">${label}${help ? helpBtn(help, label) : ""}</span><strong>${value}</strong><span class="small muted">${sub}</span></div>`;
+    const efes = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6], costos = [400, 800, 1200, 2000, 3000];
+    const neto = (ef: number, c: number) => (e > 0 ? Math.round((evit / e) * ef * c - gasto) : 0);
+    sum.textContent = `${eco.neto >= 0 ? "Ahorro neto" : "Pérdida neta"} de ${soles(Math.abs(eco.neto))} · ${retorno != null ? `${retorno.toFixed(1)} soles ahorrados por cada sol invertido` : "sin gasto"}${equilibrio != null ? (equilibrio > 1 ? " · con estos costos no se paga con ninguna efectividad" : ` · se paga con una efectividad de ${Math.ceil(equilibrio * 100)}% o más`) : ""}`;
+    body.innerHTML = `
+      <p class="small muted">Con ${t.brigadas} brigadas (${soles(gasto)}) el plan evita ~${fmt(evit)} casos ${q === "p50" ? "(valor probable)" : "(escenario prudente)"}. Todo se recalcula al mover los controles.</p>
+      <div class="tiles">
+        ${tile("Gasto en brigadas", soles(gasto), `${t.brigadas} brigadas · ${soles(Number(cBrig.value))} cada una`)}
+        ${tile("Ahorro por casos evitados", soles(eco.ahorro), `${fmt(evit)} casos · ${soles(costoCaso)} cada uno`)}
+        ${tile("Ahorro neto", `${eco.neto >= 0 ? "" : "−"}${soles(Math.abs(eco.neto))}`, eco.neto >= 0 ? "el plan se paga solo" : "no alcanza a pagarse con estos supuestos", "ahorro_neto")}
+        ${tile("Retorno por sol invertido", retorno != null ? retorno.toFixed(2) : "—", "soles ahorrados por cada sol gastado", "retorno_sol")}
+        ${tile("Costo por caso evitado", porCaso != null ? soles(Math.round(porCaso)) : "—", `frente a ${soles(costoCaso)} que cuesta atender un caso`)}
+        ${tile("Efectividad mínima para pagarse", eqTxt, `tú supones ${efe.value}%`, "equilibrio")}
+        ${tile("Ahorro extra frente a repartir parejo", `${extra >= 0 ? "+" : "−"}${soles(Math.abs(Math.round(extra)))}`, "por repartir las brigadas con el plan óptimo")}
+      </div>
+      ${piso ? `<p class="data-note warn">${icon("info", 18)}<span><strong>Los casos esperados de hoy son un piso.</strong> El modelo de solo clima tiende a quedarse corto en las epidemias (ya se ajusta con el acumulado oficial del CDC, pero sigue por debajo de lo que se reporta cada semana), así que el ahorro real de las brigadas podría ser mayor que el de esta tabla.</span></p>` : ""}
+      <h3>¿Y si los supuestos cambian?</h3>
+      <p class="small muted">Ahorro neto (en soles) según la efectividad de las brigadas y lo que cuesta atender un caso. Las celdas rojas pierden dinero.</p>
+      <div class="table-wrap"><table class="sens">
+        <thead><tr><th>Efectividad ↓ · Costo por caso →</th>${costos.map((c) => `<th class="num">${soles(c)}</th>`).join("")}</tr></thead>
+        <tbody>${efes.map((ef) => `<tr><th>${Math.round(ef * 100)}%</th>${costos.map((c) => { const v = neto(ef, c); return `<td class="num ${v < 0 ? "neg" : "pos"}">${v < 0 ? "−" : ""}${soles(Math.abs(v))}</td>`; }).join("")}</tr>`).join("")}</tbody>
+      </table></div>
+      <p class="small muted">Los costos son de ejemplo: la cifra real de una brigada y de atender un caso (consulta, hospitalización, días de trabajo perdidos) debe salir de la DIRESA o de un estudio de costos. Este cálculo no incluye el valor de las vidas ni el sufrimiento evitados.</p>`;
   }
 
   function renderStrategies(res: OptResult, q: "p10" | "p50" | "p90") {
@@ -238,6 +286,7 @@ import Help from "../components/Help.astro";
     last = { res, q, input };
     renderKpis(res, q, input.length);
     renderStrategies(res, q);
+    renderEconomics(res, q);
     $("#narrative").innerHTML = narrative(res, q);
     renderTable(res, q);
     $("#plan-ai-box").hidden = true;
@@ -247,7 +296,7 @@ import Help from "../components/Help.astro";
     replay.innerHTML = `<strong>Modo replay — ${s.etiqueta}.</strong> El plan se calcula con las predicciones de la semana del ${weekLabel(s.semana)}.`;
     const note = $("#plan-note");
     note.hidden = s.modelo.familia !== "clima";
-    note.innerHTML = `<strong>Los casos esperados de hoy salen del modelo solo con clima.</strong> El último caso oficial es de ${weekLabel(app.datos.ultimo_caso_oficial)}; usa este plan para decidir en qué distritos empezar, no como cifra exacta de casos evitados. En los replays de 2017 y 2023 el modelo sí usa casos reales recientes.`;
+    note.innerHTML = `<strong>Los casos esperados de hoy salen del modelo solo con clima.</strong> El último caso oficial por distrito es de ${weekLabel(app.datos.ultimo_caso_oficial)}; por eso los casos esperados se ajustan con el acumulado oficial del año por departamento (informe del CDC, semana ${s.ajuste_intensidad?.informe?.semana_epidemiologica ?? "—"}). Usa este plan para decidir en qué distritos empezar, no como cifra exacta de casos evitados. En los replays de 2017 y 2023 el modelo sí usa casos reales recientes.`;
     history.replaceState(null, "", `?escenario=${scenarioSel.value}${deptSel.value ? `&depto=${deptSel.value}` : ""}&b=${brig.value}&h=${hab.value}&e=${efe.value}&c=${p.criterio}`);
   }
 
@@ -286,6 +335,14 @@ import Help from "../components/Help.astro";
 </script>
 
 <style>
+  :global(.sens .num) { text-align: right; font-variant-numeric: tabular-nums; }
+  :global(.sens td.neg) { background: var(--critical-soft); color: var(--critical-ink); }
+  :global(.sens td.pos) { background: var(--good-soft); color: var(--good-ink); }
+  :global(.sens th) { font-weight: 600; text-align: left; padding: 6px 8px; }
+  :global(.sens td) { padding: 6px 8px; border-top: 1px solid var(--border); }
+  :global(#econ-body .tiles) { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 16px; }
+  :global(#econ-body .tile) { display: flex; flex-direction: column; gap: 2px; background: var(--surface-2); border-radius: 10px; padding: 12px; }
+  :global(#econ-body .tile strong) { font-size: 1.35rem; }
   .head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
   .filters { display: flex; gap: 12px; flex-wrap: wrap; }
   .filters label { display: flex; flex-direction: column; font-size: 0.8rem; font-weight: 600; color: var(--text-2); gap: 4px; min-width: 170px; }

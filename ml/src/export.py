@@ -23,7 +23,7 @@ import pandas as pd
 
 import establishments
 import hazards
-from config import (API_MODELS, DATA_PROCESSED, DATA_RAW, DISEASES, HORIZON_WEEKS, MODELS, REPORTS,
+from config import (API_MODELS, DATA_PROCESSED, DATA_RAW, DISEASES, REFERENCE_DIR, HORIZON_WEEKS, MODELS, REPORTS,
                     ROOT, WEB_DATA, districts_frame)
 from content import (AUTHORITY_ACTIONS, CITIZEN_ACTIONS, DISEASE_INFO, FLOOD_ACTIONS_AUTHORITY,
                      FLOOD_ACTIONS_CITIZEN, FLOOD_INFO, LEVEL_THRESHOLDS, LEVELS, level_of)
@@ -98,21 +98,24 @@ def factor_intensidad(feats, week, bundle):
     return round(intensity_factor(obs, prd, week), 3)
 
 
-def predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last_case):
+def predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last_case, dept_factors=None, dep_of=None):
     rows = feats[feats.week == week].set_index("district_id")
     by_family = {}
     for did in rows.index:
         by_family.setdefault(fam_of[did], []).append(did)
-    dengue, factors = {}, {}
+    dengue, factors = {}, {}   # factors: factor de intensidad por distrito
     for fam, ids in by_family.items():
         b = bundles[(model_id, fam)]
         X = rows.loc[ids, FEATURES[fam]].values.astype(float)
         assert not np.isnan(X).any(), f"variables incompletas para la familia {fam}"
         prob = b["clf"].predict_proba(X)[:, 1]
         q = predict_cases(b["regs"], X)
-        k = factor_intensidad(feats, week, b) if fam == "casos" else 1.0   # sin casos recientes no hay con qué calibrar
-        factors[fam] = k
+        # Con casos recientes: calibración con las últimas 4 semanas. Solo con clima: calibración con el acumulado oficial
+        # del año por departamento (si hay informe del CDC); en un replay no se usa información posterior a esa semana.
+        k_fam = factor_intensidad(feats, week, b) if fam == "casos" else 1.0
         for i, did in enumerate(ids):
+            k = k_fam if fam == "casos" else float((dept_factors or {}).get((dep_of or {}).get(did), 1.0))
+            factors[did] = k
             dengue[did] = (float(prob[i]), float(q["p10"][i]) * k, float(q["p50"][i]) * k, float(q["p90"][i]) * k, b["base_rate"], fam)
 
     out = []
@@ -137,7 +140,7 @@ def predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last
         entry = {
             "district_id": did,
             "modelo_tipo": fam,
-            "factor_intensidad": factors[fam],
+            "factor_intensidad": round(factors[did], 3),
             "ultimo_dato_casos": str(last_case.date()),
             "features": values,
             "riesgos": risks,
@@ -151,6 +154,35 @@ def predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last
             entry["real"] = {"casos_4_semanas": int(row.dengue_next), "brote": bool(row.dengue_outbreak)}
         out.append(entry)
     return out, {fam: {k: m["base_rate"] for k, m in simple_models[fam].items()} | {"dengue": bundles[(model_id, fam)]["base_rate"]} for fam in simple_models}
+
+
+def write_cdc_ts(cdc, districts):
+    """Resumen del informe del CDC como módulo TypeScript: lo usa la base de conocimiento de la IA (src/lib/knowledge.ts),
+    así la IA y el panel citan siempre las mismas cifras."""
+    if not cdc:
+        return
+    top = sorted(cdc["distritos"].items(), key=lambda kv: -kv[1]["casos_2026"])[:8]
+    data = {"semana": cdc["meta"]["semana_epidemiologica"], "anio": cdc["meta"]["anio"], "url": cdc["meta"]["url"],
+            "departamentos": {d: {"casos_2025": v["casos_2025"], "casos_2026": v["casos_2026"], "casos_ultima_semana": v["casos_ultima_semana"]}
+                              for d, v in cdc["departamentos"].items()},
+            "top": [{"distrito": districts.loc[i, "district"], "departamento": districts.loc[i, "department"], "casos_2026": int(v["casos_2026"]),
+                     "casos_2025": int(v["casos_2025"]), "casos_ultima_semana": int(v["casos_ultima_semana"])} for i, v in top]}
+    (WEB_DATA.parent.parent / "src" / "lib" / "cdc2026.ts").write_text(
+        "// Generado por ml/src/export.py a partir del informe semanal del CDC. No editar a mano.\n"
+        f"export const CDC2026 = {json.dumps(data, ensure_ascii=False, indent=2)} as const;\n", encoding="utf-8")
+
+
+def dengue_2026_cdc():
+    """Casos 2026 por distrito de la sala situacional del CDC (los distritos con más casos de cada departamento)."""
+    table_p, meta_p, rows_p = (REFERENCE_DIR / f for f in ("dengue_2026_distritos_cdc.csv", "dengue_2026_distritos_cdc.meta.json", "dengue_2026_filas_cdc.csv"))
+    if not (table_p.exists() and meta_p.exists() and rows_p.exists()):
+        return None
+    t, rows = pd.read_csv(table_p), pd.read_csv(rows_p)
+    cols = ["casos_2025", "tia_2025", "casos_2026", "tia_2026", "casos_ultima_semana", "defunciones_2026", "letalidad_pct"]
+    districts = {r.district_id: {c: (None if pd.isna(getattr(r, c)) else num(getattr(r, c), 2)) for c in cols} for r in t.itertuples() if pd.notna(r.casos_2026)}
+    deps = {d: {"casos_2025": int(g.casos_2025.sum()), "casos_2026": int(g.casos_2026.sum()), "casos_ultima_semana": int(g.casos_ultima_semana.sum())}
+            for d, g in rows.groupby("department")}
+    return {"meta": json.loads(meta_p.read_text(encoding="utf-8")), "distritos": districts, "departamentos": deps}
 
 
 def scenario_reference(feats):
@@ -231,7 +263,10 @@ def main():
             fam_of = {did: ("casos" if fresh and rows.loc[did, FEATURES["casos"]].notna().all() else "clima") for did in rows.index}
         else:
             fam_of = {did: "casos" for did in rows.index}
-        preds, tasa_base = predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last_case)
+        ytd = read_json(REPORTS / "calibration_ytd.json") if (REPORTS / "calibration_ytd.json").exists() else None
+        dept_factors = ({d: v["factor"] for d, v in ytd["hoy"]["por_departamento"].items()} if (is_now and ytd and ytd.get("hoy")) else None)
+        dep_of = districts.department.to_dict()
+        preds, tasa_base = predict_snapshot(feats, week, model_id, bundles, simple_models, fam_of, last_case, dept_factors, dep_of)
         # Lluvias extremas: hoy = últimos 14 días observados + 16 de pronóstico; replay = solo lo observado hasta esa semana
         obs_end = daily.time.max() if is_now else week + pd.Timedelta(days=6)
         flood, flood_series = hazards.snapshot(daily, forecast, flood_th, obs_end, use_forecast=is_now)
@@ -249,6 +284,9 @@ def main():
                        "distritos_con_casos_recientes": sum(1 for v in fam_of.values() if v == "casos")},
             "ventana_lluvia": {"hasta": obs_end.strftime("%Y-%m-%d"), "con_pronostico": is_now and forecast is not None},
             "tasa_base": tasa_base,
+            "ajuste_intensidad": (
+                {"origen": "acumulado oficial del año por departamento (CDC)", "informe": ytd["hoy"]["informe"], "por_departamento": ytd["hoy"]["por_departamento"]}
+                if dept_factors else {"origen": "resultados de las últimas 4 semanas con casos recientes"} if any(p["modelo_tipo"] == "casos" for p in preds) else None),
             "distritos": preds,
             "inundacion_serie": flood_series,
         }
@@ -284,6 +322,8 @@ def main():
             "dias_distrito_sobre_umbral_alto_por_anio": hazards.backtest(daily, flood_th),
             "umbrales_mm": flood_th,
         },
+        "calibracion_acumulado_oficial": read_json(REPORTS / "calibration_ytd.json") if (REPORTS / "calibration_ytd.json").exists() else None,
+        "dengue_2026_cdc": dengue_2026_cdc(),
         "monitoreo": read_json(REPORTS / "monitoring.json"),
         "validacion_externa_2026": read_json(REPORTS / "validation_gore.json"),
         "contexto_oficial_2026": read_json(ROOT / "reference" / "contexto_oficial_2026.json"),
@@ -299,6 +339,7 @@ def main():
     (WEB_DATA / "app.json").write_text(payload, encoding="utf-8")
     estab = establishments.build(DATA_RAW / "minsa" / "dengue_piura_gore.csv")
     (WEB_DATA / "establecimientos.json").write_text(json.dumps(estab, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
+    write_cdc_ts(app["dengue_2026_cdc"], districts)
     series = json.dumps(export_series(feats, districts), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     (WEB_DATA / "series.json").write_text(series, encoding="utf-8")
     print(f"Exportado series.json ({len(series) / 1024:.0f} KB)")

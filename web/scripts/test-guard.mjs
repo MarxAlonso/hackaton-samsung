@@ -10,6 +10,8 @@ import {
 } from "../src/lib/guard.ts";
 import { GLOSARIO } from "../src/lib/glossary.ts";
 import { CONOCIMIENTO, HECHOS_OFICIALES } from "../src/lib/knowledge.ts";
+import { CDC2026 } from "../src/lib/cdc2026.ts";
+import { PRODUCTOS, LIMITES_IMPACTO } from "../src/lib/impacto_alimentos.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -134,12 +136,12 @@ const permitidos = numerosPermitidos(ctx, CONOCIMIENTO);
 test("acepta respuestas que solo usan cifras conocidas, escritas de distintas formas", () => {
   for (const t of [
     "En Castilla la probabilidad de brote es de 53% y se esperan unos 17 casos (hasta 42).",
-    "Piura tiene 10 644 casos este año, según el CDC.",
-    "Piura tiene 10,644 casos y Lambayeque 6 130.",
+    "Piura tiene 11 701 casos este año, según el CDC.",
+    "Piura tiene 11,701 casos y Lambayeque 7 065.",
     "Hay unos 160 mil habitantes y cayeron 17 mm de lluvia.",
     "El último dato oficial es del 29 de diciembre de 2025, en las próximas 4 semanas.",
     "El rango va del percentil 10 al 90 y el umbral extremo es el percentil 99,9.",
-    "Piura registra 944% más casos que en 2025.",
+    "Piura registró 716 casos en la última semana.",
   ]) {
     const r = revisarRespuesta(t, permitidos);
     assert.equal(r.ok, true, `debía aceptarse: ${t} → ${r.ok ? "" : r.motivo + " " + r.detalle}`);
@@ -149,7 +151,7 @@ test("acepta respuestas que solo usan cifras conocidas, escritas de distintas fo
 test("rechaza respuestas con cifras inventadas", () => {
   for (const t of [
     "Se esperan 5000 casos en Castilla.",
-    "La probabilidad es de 87%.",
+    "La probabilidad es de 91%.",
     "Piura tiene 25 000 casos de dengue este año.",
     "Hay 340 mm de lluvia pronosticados.",
   ]) {
@@ -191,18 +193,47 @@ test("lee bien los números en español", () => {
 });
 
 // ------------------------------------------------------------------ base de conocimiento y glosario
-test("las cifras oficiales de la IA coinciden con el archivo de referencia", () => {
+test("las cifras oficiales de la IA coinciden con los archivos de referencia", () => {
   const ref = JSON.parse(readFileSync(join(root, "..", "ml", "reference", "contexto_oficial_2026.json"), "utf8"));
   const nums = numerosPermitidos(HECHOS_OFICIALES);
-  const d = ref.dengue_departamentos.departamentos;
-  for (const dep of Object.values(d)) {
-    for (const v of [dep.casos_2025, dep.casos_2026, Math.round(dep.variacion_pct)]) assert.ok(nums.has(v), `falta ${v} en HECHOS_OFICIALES`);
-  }
   const n = ref.nacional_se40;
   for (const v of [n.dengue_casos, n.dengue_variacion_pct, n.dengue_fallecidos, n.dengue_fallecidos_menores, n.eda_episodios, n.eda_variacion_pct, n.leptospirosis_casos, n.leptospirosis_variacion_pct]) {
     assert.ok(nums.has(v), `falta ${v} en HECHOS_OFICIALES`);
   }
   assert.ok(HECHOS_OFICIALES.includes(ref.alerta_epidemiologica.numero));
+  // el informe del CDC por distrito: los totales de la IA deben ser los de ml/reference/dengue_2026_filas_cdc.csv
+  const filas = readFileSync(join(root, "..", "ml", "reference", "dengue_2026_filas_cdc.csv"), "utf8").trim().split(/\r?\n/);
+  const cab = filas[0].split(",");
+  const iDep = cab.indexOf("department"), i26 = cab.indexOf("casos_2026"), i25 = cab.indexOf("casos_2025");
+  const tot = {};
+  for (const f of filas.slice(1)) {
+    const c = f.split(",");
+    tot[c[iDep]] = tot[c[iDep]] ?? { a: 0, b: 0 };
+    tot[c[iDep]].a += Number(c[i25]); tot[c[iDep]].b += Number(c[i26]);
+  }
+  for (const [d, t] of Object.entries(tot)) {
+    assert.equal(CDC2026.departamentos[d].casos_2026, t.b, `${d}: casos 2026`);
+    assert.equal(CDC2026.departamentos[d].casos_2025, t.a, `${d}: casos 2025`);
+    assert.ok(nums.has(t.b) && nums.has(t.a), `${d}: la IA debe citar ${t.b} y ${t.a}`);
+  }
+});
+
+test("cada alimento en riesgo trae fuente con enlace, fecha y origen, y las estimaciones no se presentan como oficiales", () => {
+  assert.ok(PRODUCTOS.length >= 5);
+  for (const p of PRODUCTOS) {
+    assert.ok(p.fuentes.length >= 1, `${p.id}: sin fuente`);
+    for (const f of p.fuentes) {
+      assert.match(f.url, /^https:\/\//, `${p.id}: enlace`);
+      assert.match(f.fecha, /^2026-\d\d-\d\d$/, `${p.id}: fecha`);
+      assert.ok(f.origen && f.medio && f.titulo, `${p.id}: faltan datos de la fuente`);
+    }
+    assert.ok(["oficial", "estimacion"].includes(p.tipo));
+    if (p.tipo === "estimacion") assert.ok(!/oficial/i.test(p.dato ?? ""), `${p.id}: una estimación no puede decirse oficial`);
+  }
+  assert.ok(LIMITES_IMPACTO.some((l) => /pesca/i.test(l)), "debe decirse que la pesca no está incluida");
+  assert.ok(!/pesca|langostino|anchoveta/i.test(PRODUCTOS.map((p) => p.riesgo + (p.dato ?? "")).join(" ")), "no se afirma nada de pesca sin fuente");
+  // la IA conoce los mismos alimentos con las mismas cifras
+  assert.ok(CONOCIMIENTO.includes("178 595") && CONOCIMIENTO.includes("93%"));
 });
 
 test("el glosario está completo y la IA no recibe nada fuera de él", () => {
@@ -210,7 +241,7 @@ test("el glosario está completo y la IA no recibe nada fuera de él", () => {
     assert.ok(e.titulo && e.que && e.que.length > 20, `entrada incompleta: ${k}`);
     assert.ok(!/<|>/.test(JSON.stringify(e)), `${k} no debe llevar HTML`);
   }
-  assert.ok(CONOCIMIENTO.length < 9000, `la base de conocimiento es muy larga (${CONOCIMIENTO.length})`);
+  assert.ok(CONOCIMIENTO.length < 16000, `la base de conocimiento es muy larga (${CONOCIMIENTO.length})`);
   assert.ok(CONOCIMIENTO.includes("El Niño costero"));
 });
 

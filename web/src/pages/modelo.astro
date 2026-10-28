@@ -82,6 +82,8 @@ const nuevo = A.subconjuntos.anticipacion_brote_nuevo;
 const cal = A.calibracion_intensidad;
 const sesgoC = C.razon_observado_previsto_por_anio;
 const val: any = (app as any).validacion_externa_2026;
+const ytd: any = (app as any).calibracion_acumulado_oficial;
+const ytdT = ytd?.prueba_2022_2025?.total;
 const yr = (y: number) => A.evaluacion_progresiva.find((r: any) => r.anio === y);
 const yearsExt = ext.dias_distrito_sobre_umbral_alto_por_anio as Record<string, number>;
 const SUM = {
@@ -89,6 +91,7 @@ const SUM = {
   ic: `AUC con casos ${A.modelo.auc} (${ic(A, "auc")}) · solo clima ${C.modelo.auc} (${ic(C, "auc")})`,
   calib: `El sesgo de 2023 baja de ${cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_antes}× a ${cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_despues}× · solo con clima no se puede calibrar`,
   val: `AUC ${val.ordenamiento.auc_modelo_clima} contra ${val.ordenamiento.auc_linea_base_calendario} del calendario · la señal de arrastre no se integra`,
+  ytd: ytdT ? `Sesgo ${ytdT.antes.razon_observado_previsto}× → ${ytdT.despues.razon_observado_previsto}× · rango ${pc(ytdT.antes.cobertura_p10_p90)} → ${pc(ytdT.despues.cobertura_p10_p90)} · es el ajuste que se aplica hoy` : "",
   conf: "Si dice 70%, ¿ocurre 7 de cada 10 veces? y en qué variables se fija el modelo",
   otras: "Leptospirosis, diarreas, infecciones respiratorias y golpe de calor (simulado)",
   mon: `${stateLabel} · ${rt.decision === "promovido" ? "retador promovido" : "se mantiene el campeón"}`,
@@ -194,8 +197,47 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </table>
     </div>
     <p class="small muted"><strong>Resultado:</strong> en las epidemias de 2023 y 2024 el sesgo baja de {cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_antes}× y {cal.por_anio.find((r: any) => r.anio === 2024).razon_observado_previsto_antes}× a casi 1, y el rango se acerca al 80%. <strong>Costo:</strong> el error medio sube de {cal.total.mae_p50_antes} a {cal.total.mae_p50_despues} casos, porque en años tranquilos el ajuste a veces se pasa. En 2022 y 2025 hubo poco que corregir.</p>
-    <p class="data-note warn"><span><strong>Con solo clima no hay con qué calibrar:</strong> sin casos recientes no se conoce lo que realmente pasó. Su sesgo es grande: lo observado fue {sesgoC["2023"]}× lo previsto en 2023 y {sesgoC["2024"]}× en 2024. Por eso hoy se muestra su rango como orientación y no como cifra, y se contrasta con las cifras oficiales del CDC.</span></p>
+    <p class="data-note warn"><span><strong>Con solo clima no se puede usar este factor:</strong> sin casos recientes no se conoce lo que pasó en las últimas 4 semanas. Su sesgo sin ajuste es grande: lo observado fue {sesgoC["2023"]}× lo previsto en 2023 y {sesgoC["2024"]}× en 2024. Por eso hoy se corrige con el acumulado oficial del año (apartado siguiente).</span></p>
   </Acc>
+
+  {ytd && ytdT && (
+  <Acc title="Ajuste con el acumulado oficial del año (el que se aplica hoy)" icon="trendingUp" help="ajuste_acumulado" summary={SUM.ytd}>
+    <p class="small muted">Con solo clima no hay casos recientes con qué calibrar, pero el CDC publica cada semana el total de casos del año por departamento y los casos por distrito de los distritos con más casos. Se estima cuántos casos ha tenido el piloto en lo que va del año ({ytd.regla}) y se compara con lo que el modelo había previsto para esas mismas semanas. El factor se aplica a los casos esperados (P10, P50 y P90).</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Año</th><th>Observado ÷ previsto<br /><span class="small muted">antes → después (1 = sin sesgo)</span></th><th>Error por distrito<br /><span class="small muted">antes → después (casos)</span></th><th>Rango P10–P90 acierta<br /><span class="small muted">antes → después (ideal 80%)</span></th></tr></thead>
+      <tbody>
+        {ytd.prueba_2022_2025.por_anio.map((r: any) => (
+          <tr>
+            <td><strong>{r.anio}</strong></td>
+            <td>{r.antes.razon_observado_previsto.toFixed(2)} → <strong>{r.despues.razon_observado_previsto.toFixed(2)}</strong></td>
+            <td>{r.antes.mae_por_distrito} → <strong>{r.despues.mae_por_distrito}</strong></td>
+            <td>{pc(r.antes.cobertura_p10_p90)} → <strong>{pc(r.despues.cobertura_p10_p90)}</strong></td>
+          </tr>
+        ))}
+        <tr class="sub"><td><strong>Total</strong></td><td>{ytdT.antes.razon_observado_previsto} → <strong>{ytdT.despues.razon_observado_previsto}</strong></td><td>{ytdT.antes.mae_por_distrito} → <strong>{ytdT.despues.mae_por_distrito}</strong></td><td>{pc(ytdT.antes.cobertura_p10_p90)} → <strong>{pc(ytdT.despues.cobertura_p10_p90)}</strong></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="small muted"><strong>Resultado:</strong> el sesgo baja de {ytdT.antes.razon_observado_previsto}× a {ytdT.despues.razon_observado_previsto}×, el rango se acerca al 80% y el error por distrito baja {Math.round((1 - ytdT.despues.mae_por_distrito / ytdT.antes.mae_por_distrito) * 100)}%. El ajuste está amortiguado a propósito: con el factor completo el sesgo se corregía más, pero el error por distrito empeoraba. <strong>Límite:</strong> corrige la magnitud, no el reparto entre distritos, y aun así tiende a quedarse corto.</p>
+    {ytd.hoy && (
+      <>
+        <h3 class="inline-ico"><Fragment set:html={icon("map", 18)} /> Factores de hoy (informe del CDC, semana {ytd.hoy.informe.semana_epidemiologica})</h3>
+        <div class="table-wrap">
+        <table>
+          <thead><tr><th>Departamento</th><th>Casos 2026 del departamento</th><th>Estimado en el piloto</th><th>Previsto por el modelo</th><th>Factor aplicado</th></tr></thead>
+          <tbody>
+            {Object.entries(ytd.hoy.por_departamento).map(([d, v]: [string, any]) => (
+              <tr><td>{d}</td><td>{v.casos_departamento_2026.toLocaleString("es-PE")}</td><td>{v.casos_estimados_piloto.toLocaleString("es-PE")} <span class="small muted">({pc(v.participacion_piloto)} del departamento)</span></td><td>{v.casos_previstos_por_el_modelo.toLocaleString("es-PE")}</td><td><strong>×{v.factor.toFixed(1)}</strong></td></tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+        <p class="small muted">Fuente: <a href={ytd.hoy.informe.url} target="_blank" rel="noopener">informe de dengue del CDC, semana {ytd.hoy.informe.semana_epidemiologica} de {ytd.hoy.informe.anio}</a>. La participación del piloto sale de los tres años anteriores.</p>
+      </>
+    )}
+  </Acc>
+  )}
 
   <Acc title="Validación externa con datos de 2026 (Piura)" icon="shield" help="validacion_externa" summary={SUM.val}>
     <p class="small muted">Prueba con datos que el modelo de hoy nunca vio: los casos 2025–2026 del Gobierno Regional de Piura, de {val.periodo_prueba} ({val.distritos_piura} distritos). Sus conteos no son comparables con los del CDC (otro sistema), así que "actividad alta" se define de forma relativa: casos de las próximas 4 semanas sobre el percentil 75 de ese mismo distrito.</p>

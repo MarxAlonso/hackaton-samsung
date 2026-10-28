@@ -23,7 +23,7 @@ const pasos = [
     icon: "hospital", min: "0:40", titulo: "Una autoridad prioriza hoy",
     url: "/autoridad/?escenario=actual&d=lam-olmos", foco: "#headline",
     decir: "La DIRESA ve qué distritos vigilar primero. Hoy no hay casos oficiales recientes por distrito (el último dato es de fines de 2025), así que el sistema lo dice con claridad y estima solo con clima, y lo contrasta con las cifras oficiales de 2026.",
-    mirar: ["Cada apartado se abre con un toque, y el botón ? explica cualquier término.", "La tarjeta con lo que reporta el CDC este año: Piura +944%, Lambayeque +832% frente a 2025.", "El aviso amarillo: estimación solo con clima, para priorizar y no como cifra exacta.", "Los establecimientos que más casos notifican en el distrito (solo Piura)."],
+    mirar: ["Cada apartado se abre con un toque, y el botón ? explica cualquier término.", "La tarjeta con lo que reporta el CDC este año (Piura y Lambayeque con unas 11 y 10 veces los casos de 2025) y los casos 2026 de cada distrito.", "El aviso amarillo: estimación solo con clima, para priorizar y no como cifra exacta.", "Los establecimientos que más casos notifican en el distrito (solo Piura)."],
   },
   {
     icon: "calendar", min: "0:40", titulo: "¿Habría avisado en 2023?",
@@ -39,9 +39,15 @@ const pasos = [
   },
   {
     icon: "target", min: "0:40", titulo: "Dónde poner las brigadas",
-    url: "/plan/?escenario=2023&b=20", foco: "#kpis",
+    url: "/plan/?escenario=2023&b=20", foco: "#econ-acc",
     decir: "Con 20 brigadas, ¿a quién enviarlas? Un optimizador compara el reparto óptimo con repartir parejo y muestra cuántos casos se evitan, con rango de incertidumbre. Los costos son supuestos de ejemplo que cada DIRESA puede editar.",
-    mirar: ["Los casos evitados frente a repartir parejo.", "Los supuestos editables: efectividad, habitantes por brigada, costos.", "El botón para justificar el plan con IA."],
+    mirar: ["Los casos evitados frente a repartir parejo.", "La calculadora de impacto económico: ahorro neto, retorno por sol y la efectividad mínima para que el plan se pague.", "La tabla de sensibilidad: qué pasa si los supuestos cambian.", "El botón para justificar el plan con IA."],
+  },
+  {
+    icon: "droplet", min: "0:40", titulo: "Alimentos y suministros",
+    url: "/impacto/", foco: "#tabla",
+    decir: "Con el pronóstico de lluvias, la población y el acceso a agua de cada distrito, el sitio estima cuántas personas dependen de agua que se puede contaminar y cuántas pruebas rápidas y camas harían falta. Los cultivos en riesgo vienen de fuentes citadas, cada una con su enlace.",
+    mirar: ["Cuántos distritos tienen lluvia intensa o extrema pronosticada.", "El filtro por departamento: el total se recalcula.", "Arroz, mango y banano: cada dato con su fuente, y la marca de qué es oficial y qué es estimación de terceros.", "Lo que no sabemos: no hay datos de cultivos por distrito y no se incluye pesca."],
   },
   {
     icon: "shield", min: "0:40", titulo: "Lo que el modelo sí y no sabe",
@@ -117,7 +123,7 @@ const pasos = [
           <button type="button" class="btn" id="prev"><Fragment set:html={icon("arrowRight", 16)} /> Anterior</button>
           <button type="button" class="btn primary" id="next">Siguiente <Fragment set:html={icon("arrowRight", 16)} /></button>
         </footer>
-        <p class="g-help small muted">Atajos: flechas ← → para cambiar de paso. Total aproximado: 4 a 5 minutos. <a id="open-tab" href="/" target="_blank" rel="noopener">Abrir esta vista en una pestaña</a>.</p>
+        <p class="g-help small muted">Atajos: flechas ← → para cambiar de paso. Total aproximado: 5 a 6 minutos. <a id="open-tab" href="/" target="_blank" rel="noopener">Abrir esta vista en una pestaña</a>.</p>
       </aside>
 
       <section class="stage" aria-label="Sitio en vivo">

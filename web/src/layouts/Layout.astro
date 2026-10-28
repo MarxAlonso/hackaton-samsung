@@ -7,7 +7,7 @@ import { GLOSARIO } from "../lib/glossary";
 interface Props {
   title: string;
   description?: string;
-  active?: "inicio" | "ciudadano" | "autoridad" | "plan" | "modelo";
+  active?: "inicio" | "ciudadano" | "autoridad" | "plan" | "impacto" | "modelo";
   wide?: boolean;
 }
 const { title, description = "Alertas tempranas de dengue y enfermedades asociadas a El Niño por distrito.", active, wide = false } = Astro.props;
@@ -16,6 +16,7 @@ const nav = [
   { href: "/ciudadano", key: "ciudadano", label: "Soy ciudadano", icon: "home" },
   { href: "/autoridad", key: "autoridad", label: "Soy autoridad de salud", icon: "hospital" },
   { href: "/plan", key: "plan", label: "Plan de acción", icon: "target" },
+  { href: "/impacto", key: "impacto", label: "Alimentos y suministros", icon: "droplet" },
   { href: "/modelo", key: "modelo", label: "Cómo funciona", icon: "cpu" },
 ];
 ---
@@ -126,6 +127,7 @@ const nav = [
           <a href="/ciudadano">Soy ciudadano</a>
           <a href="/autoridad">Soy autoridad de salud</a>
           <a href="/plan">Plan de acción</a>
+          <a href="/impacto">Alimentos y suministros</a>
         </nav>
         <nav class="foot-col" aria-label="Proyecto">
           <h2>El proyecto</h2>

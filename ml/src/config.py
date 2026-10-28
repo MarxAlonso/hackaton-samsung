@@ -12,6 +12,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = ROOT / "data" / "raw"
+REFERENCE_DIR = ROOT / "reference"
 DATA_PROCESSED = ROOT / "data" / "processed"
 MODELS = ROOT / "models"
 REPORTS = ROOT / "reports"

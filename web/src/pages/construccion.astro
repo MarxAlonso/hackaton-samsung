@@ -79,6 +79,8 @@ const herramientas = [
 
 const lecciones = [
   { t: "Verificar antes de descartar", d: `Habíamos descartado el 2025 del archivo nacional por parecer incompleto (Piura: 1 117 casos frente a 12 242 del Gobierno Regional). Un informe de la DGE al 12/09/2026 lo desmintió: su columna 2025 coincide exactamente con el archivo. Corregimos y la cobertura oficial llega hasta el ${fecha(app.datos.ultimo_caso_oficial)}.` },
+  { t: "Buscar el dato donde sí existe", d: "Los casos 2026 por distrito no estaban en datos abiertos, pero el CDC los publica cada semana en el PDF de su sala situacional. Escribimos un lector que baja el último informe y extrae las tablas. Solo trae los distritos con más casos, y así se dice en cada pantalla." },
+  { t: "Una calibración se prueba en el pasado antes de usarse hoy", d: "El ajuste con el acumulado oficial del año se repitió en 2022 a 2025 usando solo lo que se sabía en cada semana. Con el factor completo corregía el sesgo pero empeoraba el error por distrito; por eso se amortigua. Aun así hoy el modelo queda a la mitad de lo que reporta el CDC, y se avisa." },
   { t: "Dos fuentes que no cuadran no se mezclan", d: "El Gobierno Regional de Piura cuenta de otra manera que el CDC. En vez de forzar un empalme, lo usamos aparte: como contexto y como validación externa del modelo, con una verdad relativa." },
   { t: "Una corrección se prueba antes de publicarse", d: "Probamos dos formas de recalibrar la intensidad; la primera empeoraba el error y se descartó. La que quedó corrige el sesgo de 2023 y 2024 y su costo (un poco más de error medio) está a la vista en la página del modelo." },
   { t: "Cruzar por código, no por nombre", d: "La Ñ llega dañada en el origen (Pariñas, Tambo Grande, Ferreñafe). Todo se une por UBIGEO." },
@@ -89,10 +91,10 @@ const lecciones = [
 ];
 
 const pruebas = [
-  { n: "47", t: "Pruebas del pipeline", d: "semanas epidemiológicas, cobertura del último año, descarga con detección de cambios, calibración sin fuga de información, intervalos de confianza" },
+  { n: "54", t: "Pruebas del pipeline", d: "semanas epidemiológicas, cobertura del último año, descarga con detección de cambios, calibración sin fuga de información, intervalos de confianza" },
   { n: "20", t: "Pruebas de la API", d: "predicción, lotes y optimizador de brigadas" },
-  { n: "20", t: "Pruebas de humo del sitio publicado", d: "páginas, datos sin NaN, factor de intensidad, establecimientos, reportes, restricciones de la IA, ayuda, 16 modelos ONNX y PWA; corren tras cada publicación" },
-  { n: "15", t: "Pruebas de la IA y del glosario", d: "manipulación, otros temas, peticiones médicas, cifras inventadas, enlaces y medicamentos; cada botón «?» apunta a una definición real" },
+  { n: "22", t: "Pruebas de humo del sitio publicado", d: "páginas, datos sin NaN, factor de intensidad, establecimientos, reportes, restricciones de la IA, ayuda, 16 modelos ONNX y PWA; corren tras cada publicación" },
+  { n: "16", t: "Pruebas de la IA y del glosario", d: "manipulación, otros temas, peticiones médicas, cifras inventadas, enlaces y medicamentos; cada botón «?» apunta a una definición real y cada alimento en riesgo trae su fuente" },
   { n: "35", t: "Pruebas en navegador real", d: "recorridos de las páginas, instalación, uso sin conexión con el servidor apagado" },
 ];
 ---
@@ -178,10 +180,11 @@ const pruebas = [
     <p class="small muted">En 4G lenta la descarga de 3,3 MB toma unos 17 s: por eso el motor y los modelos se bajan en segundo plano apenas el panel está listo, y quien lee unos segundos antes de mover los controles espera mucho menos. Una vez descargados, cada simulación tarda una décima de segundo y la app funciona sin conexión. El motor de ONNX (unos 3 MB comprimidos) se sirve desde un CDN público porque su archivo supera el límite de 25 MiB de Cloudflare Workers.</p>
   </Acc>
 
-  <Acc title="Lo que sigue" icon="arrowRight" summary="Casos 2026 por distrito, calibración sin casos, más establecimientos y lenguas originarias">
+  <Acc title="Lo que sigue" icon="arrowRight" summary="Casos semanales por distrito, datos de cultivos por distrito, más establecimientos y lenguas originarias">
     <ul>
-      <li><strong>Casos 2026</strong> de Tumbes, Piura y Lambayeque (CDC/DGE y DIRESA): activaría el modelo con casos recientes (AUC {app.metricas.dengue.modelo.auc} frente a {app.metricas.dengue_clima.modelo.auc} solo con clima).</li>
-      <li><strong>Calibrar la intensidad también sin casos recientes</strong>: con casos ya está corregida; con solo clima el modelo sigue quedándose corto en las epidemias grandes.</li>
+      <li><strong>Casos semanales por distrito de 2026</strong> (CDC/DGE y DIRESA): hoy solo hay el acumulado de los distritos con más casos. Con la serie semanal el modelo volvería a usar casos recientes (AUC {app.metricas.dengue.modelo.auc} frente a {app.metricas.dengue_clima.modelo.auc} solo con clima).</li>
+      <li><strong>Cultivos y producción por distrito</strong> (SIEA del MIDAGRI): hoy los alimentos en riesgo se cruzan por departamento.</li>
+      <li><strong>Mejorar el ajuste sin casos recientes</strong>: con el acumulado oficial del año el sesgo bajó de 6,5 a 2 veces, pero el modelo de solo clima sigue quedándose corto.</li>
       <li><strong>Establecimientos de salud</strong> más allá de Piura y con predicción propia, si hay datos por establecimiento.</li>
       <li><strong>Lenguas originarias:</strong> el aviso al ciudadano en quechua y awajún, traducido y validado por hablantes (no se improvisa).</li>
       <li><strong>Validar con una DIRESA</strong> los supuestos del plan de brigadas (efectividad, capacidad y costos).</li>

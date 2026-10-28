@@ -70,7 +70,7 @@ export const GLOSARIO: Record<string, Entrada> = {
     titulo: "Estimación solo con clima",
     que: "Los casos oficiales por distrito llegan con meses de retraso (el último que tenemos es del 29 de diciembre de 2025). Mientras no haya casos recientes, el modelo de hoy usa solo clima, mar y calendario.",
     leer: "Sirve para decidir qué distritos vigilar primero: ordena bien el riesgo entre distritos.",
-    ojo: "No calcula bien cuántos casos habrá y suele quedarse corto en las epidemias grandes. Contrástalo con las cifras oficiales del CDC.",
+    ojo: "Sin ajuste, se queda muy corto en las epidemias. Por eso hoy se corrige con el acumulado oficial del año por departamento (informe del CDC), y aun así tiende a quedarse a la mitad: contrástalo con las cifras del CDC.",
   },
   enfermedades: {
     titulo: "Otras enfermedades",
@@ -144,6 +144,17 @@ export const GLOSARIO: Record<string, Entrada> = {
     que: "Lo que se ahorraría en atención de casos menos lo que cuestan las brigadas, con los costos de ejemplo que figuran en los supuestos.",
     ojo: "Los costos son de ejemplo: la cifra real debe salir de la DIRESA o de un estudio de costos.",
   },
+  equilibrio: {
+    titulo: "Equilibrio: cuándo se paga el plan",
+    que: "La efectividad mínima de las brigadas para que lo que se ahorra en casos evitados iguale lo que cuestan. Si la efectividad real es menor, el plan pierde dinero (aunque igual puede salvar a personas).",
+    leer: "Mientras más baja sea esta cifra frente a la efectividad que supones, más holgado es el plan.",
+    ojo: "Usa los costos de ejemplo: la cifra real depende de lo que cuesta atender un caso en esa DIRESA.",
+  },
+  retorno_sol: {
+    titulo: "Retorno por sol invertido",
+    que: "Cuántos soles se ahorran en atención de casos por cada sol que se gasta en brigadas. Más de 1 significa que el plan se paga solo.",
+    ojo: "Depende de la efectividad y de los costos de ejemplo.",
+  },
   efectividad: {
     titulo: "Efectividad de una brigada",
     que: "Qué parte de los casos esperados evita una brigada que cubre por completo un distrito. Con cobertura parcial el efecto es menor.",
@@ -169,7 +180,7 @@ export const GLOSARIO: Record<string, Entrada> = {
   calibracion: {
     titulo: "Calibración de la intensidad",
     que: "El modelo ordena bien los distritos, pero en las epidemias grandes se quedaba corto. Con casos recientes se compara lo observado con lo previsto en las últimas 4 semanas ya conocidas y se reescalan los casos esperados.",
-    ojo: "Solo se aplica con casos recientes. Con solo clima no hay resultados con qué calibrar.",
+    ojo: "Con casos recientes se calibra con las últimas 4 semanas. Con solo clima se calibra, de forma más tosca, con el acumulado oficial del año por departamento.",
   },
   psi: {
     titulo: "Cambio en los datos (PSI)",
@@ -211,6 +222,39 @@ export const GLOSARIO: Record<string, Entrada> = {
     leer: "Si solo quieres lo esencial, lee el aviso de arriba y las dos tarjetas: con casos recientes y solo con clima.",
   },
 
+  casos_2026_cdc: {
+    titulo: "Casos 2026 por distrito (CDC)",
+    que: "El CDC publica cada semana un informe de dengue con los distritos que más casos tienen: casos acumulados del año, tasa por 100 mil habitantes, casos de la última semana y defunciones. Los demás distritos se agrupan en «demás distritos».",
+    leer: "Se compara con los casos del mismo periodo de 2025. Si un distrito no figura, no significa que no tenga casos: no está entre los de mayor número.",
+    ojo: "Es un acumulado, no una serie semanal: no alimenta el modelo con casos recientes. Se usa para contrastar y calibrar.",
+  },
+  ajuste_acumulado: {
+    titulo: "Ajuste con el acumulado oficial",
+    que: "El modelo de solo clima se quedaba corto en las epidemias. Se estima cuántos casos tuvo el piloto en lo que va del año (casos del departamento por la participación histórica del piloto) y se compara con lo que el modelo había previsto para esas semanas. La razón, amortiguada, reescala los casos esperados.",
+    leer: "En la prueba histórica 2022 a 2025 el sesgo bajó de 6,5 a 2 veces, el rango P10 a P90 pasó de 64% a 83% y el error por distrito bajó 14%.",
+    ojo: "Corrige la magnitud, no el reparto entre distritos. Hoy aun así tiende a quedarse a la mitad de lo que reporta el CDC.",
+  },
+  panel_impacto: {
+    titulo: "Cómo leer alimentos y suministros",
+    que: "Arriba ves cuántos distritos tienen lluvia intensa o extrema pronosticada, cuántas personas no tienen agua por red en ellos y cuántos suministros de salud harían falta. Abajo, la tabla por distrito y los alimentos y cultivos en riesgo, cada uno con su fuente.",
+    ojo: "Los alimentos se cruzan por departamento, no por distrito: no hay datos abiertos de cultivos por distrito.",
+  },
+  suministros: {
+    titulo: "Suministros de salud sugeridos",
+    que: "Pruebas rápidas de dengue y camas de observación que haría falta tener según los casos esperados del distrito. Las pruebas son 1,5 veces los casos del escenario pesimista (P90) y las camas el 4% de ese mismo valor.",
+    leer: "Son un punto de partida para planificar compras y reservas, no una orden. Se actualizan cuando cambia el pronóstico.",
+    ojo: "Son reglas de ejemplo del sitio: la DIRESA debe validarlas con su experiencia y su inventario.",
+  },
+  exposicion_agua: {
+    titulo: "Personas sin agua por red",
+    que: "Habitantes del distrito que no tienen conexión de agua por red pública (población por la proporción sin acceso). Con inundaciones, sus fuentes se contaminan o se cortan y el riesgo de diarreas y leptospirosis sube.",
+    ojo: "El acceso a agua por red de cada distrito es aproximado (orden de magnitud del INEI).",
+  },
+  alimentos: {
+    titulo: "Alimentos y cultivos en riesgo",
+    que: "Cultivos y abastecimiento que El Niño 2026-2027 pone en riesgo en Tumbes, Piura y Lambayeque, con la cifra, la fuente, la fecha y el enlace de cada dato. Se distingue lo oficial (Senamhi, Midagri, Cenepred, ENFEN) de lo que es una estimación de consultoras o gremios.",
+    ojo: "No se incluye pesca ni acuicultura: las fuentes revisadas no traen cifras verificables.",
+  },
   semana_base: {
     titulo: "Semana base",
     que: "La semana desde la que el modelo mira hacia adelante. Hoy es la última semana con clima observado; en un replay es unas tres semanas antes del pico de esa epidemia.",
