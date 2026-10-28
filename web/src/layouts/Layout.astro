@@ -7,16 +7,17 @@ import { GLOSARIO } from "../lib/glossary";
 interface Props {
   title: string;
   description?: string;
-  active?: "inicio" | "ciudadano" | "autoridad" | "plan" | "impacto" | "modelo";
+  active?: "inicio" | "ciudadano" | "autoridad" | "plan" | "impacto" | "nino2027" | "modelo";
   wide?: boolean;
 }
 const { title, description = "Alertas tempranas de dengue y enfermedades asociadas a El Niño por distrito.", active, wide = false } = Astro.props;
 const fechaCorta = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 const nav = [
   { href: "/ciudadano", key: "ciudadano", label: "Soy ciudadano", icon: "home" },
-  { href: "/autoridad", key: "autoridad", label: "Soy autoridad de salud", icon: "hospital" },
+  { href: "/autoridad", key: "autoridad", label: "Autoridad de salud", icon: "hospital" },
   { href: "/plan", key: "plan", label: "Plan de acción", icon: "target" },
-  { href: "/impacto", key: "impacto", label: "Alimentos y suministros", icon: "droplet" },
+  { href: "/impacto", key: "impacto", label: "Alimentos", icon: "droplet" },
+  { href: "/nino-2027", key: "nino2027", label: "2027", icon: "wave" },
   { href: "/modelo", key: "modelo", label: "Cómo funciona", icon: "cpu" },
 ];
 ---
@@ -27,6 +28,9 @@ const nav = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
     <meta name="description" content={description} />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -125,9 +129,10 @@ const nav = [
         <nav class="foot-col" aria-label="Producto">
           <h2>Producto</h2>
           <a href="/ciudadano">Soy ciudadano</a>
-          <a href="/autoridad">Soy autoridad de salud</a>
+          <a href="/autoridad">Autoridad de salud</a>
           <a href="/plan">Plan de acción</a>
           <a href="/impacto">Alimentos y suministros</a>
+          <a href="/nino-2027">Qué viene en 2027</a>
         </nav>
         <nav class="foot-col" aria-label="Proyecto">
           <h2>El proyecto</h2>
@@ -151,7 +156,9 @@ const nav = [
     <script is:inline id="glosario-data" type="application/json" set:html={JSON.stringify(GLOSARIO)} />
     <script>
       import { initPwa } from "../lib/pwa";
+      import { initMotion } from "../lib/motion";
       initPwa();
+      initMotion();
 
       // La demo guiada se abre en una ventana aparte (si el navegador la bloquea, se abre en esta misma)
       document.querySelectorAll<HTMLElement>("[data-open-demo]").forEach((el) =>

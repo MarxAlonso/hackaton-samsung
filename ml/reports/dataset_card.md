@@ -38,6 +38,18 @@ No existe fuente abierta de golpe de calor por distrito. Se simula a partir de l
 | Anomalía del mar Niño 1+2 | NOAA CPC (`wksst9120.for`) | 1990 – hoy | Semanal |
 | ONI | NOAA CPC (`oni.ascii.txt`) | 1950 – hoy | Trimestral móvil |
 
+## Pronósticos de El Niño (NOAA, Estados Unidos)
+
+Tres productos públicos del Climate Prediction Center, descargados por `ml/src/ingest_enso_outlook.py` en cada corrida (si una fuente falla, se conserva la última):
+
+| Producto | Qué trae | Formato |
+|---|---|---|
+| Official ENSO Strength Probabilities | por temporada de 3 meses, probabilidad de La Niña, neutral y El Niño, y dentro de El Niño por fuerza (débil, moderado, fuerte, muy fuerte); región Niño 3.4, índice RONI | tabla HTML, se actualiza el segundo jueves de cada mes |
+| CFSv2 `nino12Mon.nc` | 40 corridas del modelo para la anomalía mensual de la región Niño 1+2 (frente a Perú y Ecuador); el miembro 41 trae lo observado | NetCDF (se lee con netCDF4) |
+| ENSO Diagnostic Discussion | estado del sistema de alerta, síntesis, índices del último mes y probabilidad de un evento histórico (RONI ≥ +2,5 °C) | HTML (texto) |
+
+Además, el valor observado mensual de los índices Niño (`rel_mthsst9120.txt`). Límite: NOAA pronostica El Niño global y el mar frente a Perú; el aviso oficial de El Niño costero en el Perú lo emite el ENFEN. El sitio muestra las dos cosas y lo dice.
+
 ## Otros datos
 
 Población, altitud y acceso a agua por red de cada distrito son **aproximados** (orden de magnitud INEI), no un censo.

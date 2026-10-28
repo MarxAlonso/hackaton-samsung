@@ -4,10 +4,11 @@
 import { GLOSARIO } from "./glossary.ts";
 import { CDC2026 } from "./cdc2026.ts";
 import { PRODUCTOS } from "./impacto_alimentos.ts";
+import { NOAA2027 } from "./noaa2027.ts";
 
 const CLAVES = [
   "nino", "nino12", "oni", "prob_brote", "canal_endemico", "nivel", "casos_esperados", "confianza", "modelo_clima",
-  "lluvias_extremas", "enfermedades", "contexto_oficial", "casos_2026_cdc", "ajuste_acumulado", "suministros", "exposicion_agua", "alimentos", "establecimientos", "reportes", "calibracion", "golpe_calor", "validacion_externa",
+  "lluvias_extremas", "enfermedades", "contexto_oficial", "casos_2026_cdc", "ajuste_acumulado", "suministros", "exposicion_agua", "alimentos", "nino_2027", "noaa_probabilidades", "evento_historico", "cfsv2", "establecimientos", "reportes", "calibracion", "golpe_calor", "validacion_externa",
 ] as const;
 
 // Cifras oficiales: el informe semanal del CDC por distrito (cdc2026.ts lo genera el pipeline) y la nota del Minsa
@@ -41,6 +42,17 @@ const ALIMENTOS = "Alimentos y cultivos en riesgo por El Niño 2026-2027 (no hay
     `- ${p.nombre} (${p.departamentos.join(", ")}): ${p.riesgo}${p.dato ? " " + p.dato : ""} Fuente: ${p.fuentes.map((f) => `${f.medio}, ${f.fecha}`).join("; ")} (${p.tipo === "oficial" ? "cifras oficiales" : "estimación de terceros, no oficial"}).`,
   ).join("\n");
 
+// Pronóstico de NOAA para 2027 (noaa2027.ts lo genera el pipeline): las mismas cifras que la página «Qué viene en 2027».
+const hist = NOAA2027.evento_historico ? Object.entries(NOAA2027.evento_historico.probabilidades_pct).map(([k, v]) => `${k} ${v}%`).join(", ") : "";
+export const NOAA_2027 = [
+  `Pronóstico de NOAA (Estados Unidos) descargado el ${NOAA2027.descargado}; probabilidades emitidas en ${NOAA2027.emitido}; estado: ${NOAA2027.estado_alerta}; próxima discusión: ${NOAA2027.proxima_discusion}.`,
+  `Probabilidad de El Niño por temporada (región Niño 3.4, índice RONI): ${NOAA2027.temporadas.map((t) => `${t.etiqueta}: El Niño ${t.el_nino_pct}% (muy fuerte ${t.muy_fuerte_pct}%, fuerte ${t.fuerte_pct}%), neutral ${t.neutral_pct}%`).join("; ")}.`,
+  hist ? `Probabilidad de un evento histórico (RONI de 3 meses de +2,5 °C o más, superaría todos los El Niño desde 1950): ${hist}.` : "",
+  NOAA2027.indices_ultimo_mes_C ? `Índices del último mes: Niño 3.4 +${NOAA2027.indices_ultimo_mes_C.nino34} °C, Niño 3 +${NOAA2027.indices_ultimo_mes_C.nino3} °C, Niño 1+2 (mar frente a Perú) +${NOAA2027.indices_ultimo_mes_C.nino12} °C.` : "",
+  `Modelo CFSv2 para el mar frente a Perú (Niño 1+2), promedio de 40 corridas: ${NOAA2027.nino12_pronostico.map((f) => `${f.mes} +${f.media} °C (rango ${f.p10} a ${f.p90})`).join("; ")}. Máximo previsto: +${NOAA2027.nino12_maximo.media} °C en ${NOAA2027.nino12_maximo.mes}.`,
+  "NOAA pronostica El Niño global; el aviso oficial de El Niño costero en el Perú lo emite el ENFEN (comunicado 16-2026, estado de alerta). Escala del ENFEN para El Niño costero: débil +0,4 a +1,0 °C; moderado +1,0 a +1,7 °C; fuerte +1,7 a +3,0 °C; extraordinario más de +3,0 °C.",
+].filter(Boolean).join("\n");
+
 export const CONOCIMIENTO = [
   ...CLAVES.map((k) => {
     const e = GLOSARIO[k];
@@ -48,6 +60,7 @@ export const CONOCIMIENTO = [
   }),
   DEL_SITIO,
   HECHOS_OFICIALES,
+  NOAA_2027,
   ALIMENTOS,
   MEDIDAS_MINSA,
 ].join("\n");

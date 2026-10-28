@@ -33,6 +33,7 @@ const PAGES = {
   "/autoridad/": "Panel de priorización",
   "/plan/": "Plan de acción",
   "/impacto/": "Alimentos y suministros",
+  "/nino-2027/": "Qué viene en 2027",
   "/modelo/": "Cómo funciona el modelo",
   "/construccion/": "Cómo se construyó",
   "/demo/": "Demo guiada",
@@ -90,6 +91,7 @@ await check("factor de intensidad válido (replays con casos; hoy, ajuste con el
   const cdc = app.dengue_2026_cdc;
   must(cdc?.meta?.semana_epidemiologica >= 30 && Object.keys(cdc.distritos).length >= 15, "faltan los casos 2026 por distrito del CDC");
   must(cdc.departamentos.Piura.casos_2026 > cdc.departamentos.Piura.casos_2025, "los casos 2026 de Piura deben superar los de 2025");
+  must(app.nino_2027?.probabilidades_oficiales?.temporadas?.length >= 8 && app.nino_2027?.cfsv2_nino12?.pronostico?.length >= 6, "falta el pronóstico de NOAA para 2027");
   must(app.metricas.dengue.intervalos_95?.auc?.length === 2, "faltan los intervalos de confianza");
 });
 
@@ -163,11 +165,14 @@ await check("IA: /api/explicar responde en español", async () => {
   const r = await fetch(BASE + "/api/explicar", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ modo: "autoridad", contexto: { distrito: "Castilla", dengue: { nivel: "medio", prob: 0.53 }, modelo_tipo: "clima" }, respaldo: "respaldo" }),
+    // contexto completo (como el del panel): sin recursos ni clima el modelo inventaría cantidades y el filtro las descartaría, que es lo correcto
+    body: JSON.stringify({ modo: "autoridad", contexto: { distrito: "Castilla", departamento: "Piura", poblacion: 160000, dengue: { nivel: "medio", prob: 0.53, casos_p10: 0, casos_p50: 41, casos_p90: 99, confianza: "baja" },
+      clima: { lluvia_ultimas_2sem: 0, lluvia_2_a_6sem: 2, tmax: 35.6, tmedia: 30.1 }, recursos_sugeridos: { pruebas: 149, camas: 4 }, nino12_anomalia_C: 5.3, modelo_tipo: "clima", ultimo_dato_oficial_de_casos: "2025-12-29" }, respaldo: "respaldo de plantilla" }),
   });
   must(r.ok, `HTTP ${r.status}`);
   const j = await r.json();
   must(typeof j.texto === "string" && j.texto.length > 20, "respuesta vacía");
+  must(j.fuente === "ia" || j.motivo === "cifras", `la IA no respondió (${j.fuente}${j.motivo ? ":" + j.motivo : ""})`);
   must(["ia", "plantilla"].includes(j.fuente), `fuente inesperada: ${j.fuente}`);
   return `fuente: ${j.fuente}`;
 });

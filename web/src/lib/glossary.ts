@@ -255,6 +255,32 @@ export const GLOSARIO: Record<string, Entrada> = {
     que: "Cultivos y abastecimiento que El Niño 2026-2027 pone en riesgo en Tumbes, Piura y Lambayeque, con la cifra, la fuente, la fecha y el enlace de cada dato. Se distingue lo oficial (Senamhi, Midagri, Cenepred, ENFEN) de lo que es una estimación de consultoras o gremios.",
     ojo: "No se incluye pesca ni acuicultura: las fuentes revisadas no traen cifras verificables.",
   },
+  nino_2027: {
+    titulo: "Qué viene en 2027",
+    que: "Lo que pronostican los centros de Estados Unidos (NOAA) sobre El Niño: qué tan fuerte será cada temporada y cómo evolucionaría el mar frente a Perú. Se descarga por script y se muestra con sus fechas y enlaces.",
+    leer: "NOAA habla de El Niño global (Pacífico central). El que declara «El Niño costero» en el Perú y su magnitud es el ENFEN. Hoy los dos coinciden en un evento muy fuerte.",
+    ojo: "Son probabilidades y se actualizan cada mes. Un pronóstico fuerte no fija la fecha ni la magnitud de las lluvias en cada distrito.",
+  },
+  noaa_estado: {
+    titulo: "Estado del sistema de alerta de NOAA",
+    que: "NOAA mantiene un semáforo de El Niño: «vigilancia» cuando es probable que se forme, «aviso» (advisory) cuando ya está presente y se espera que continúe, y «final» cuando se disipa.",
+    leer: "«Aviso de El Niño» significa que El Niño ya está en marcha.",
+  },
+  noaa_probabilidades: {
+    titulo: "Probabilidades oficiales de NOAA",
+    que: "Para cada temporada de 3 meses, la probabilidad de El Niño, de neutral y de La Niña, y dentro de El Niño, qué tan fuerte: débil, moderado, fuerte o muy fuerte. Lo elabora un equipo de unas 10 personas con varios modelos y observaciones.",
+    leer: "Se mide en la región Niño 3.4 del Pacífico central con el índice RONI. Se actualiza el segundo jueves de cada mes.",
+  },
+  evento_historico: {
+    titulo: "Evento histórico",
+    que: "NOAA calcula la probabilidad de que el índice de 3 meses llegue a +2,5 °C o más, lo que superaría todos los El Niño registrados desde 1950 (incluidos 1982–83, 1997–98 y 2015–16).",
+    ojo: "Que el índice global sea histórico no dice por sí solo cuánta lluvia caerá en cada distrito del norte del Perú.",
+  },
+  cfsv2: {
+    titulo: "Modelo CFSv2 y la región Niño 1+2",
+    que: "CFSv2 es el modelo climático de NOAA que corre 40 veces con pequeñas diferencias iniciales. Para la región Niño 1+2 (el mar frente a Perú y Ecuador) se muestra el promedio y el rango entre el 10% y el 90% de esas corridas.",
+    ojo: "Es un solo modelo y no es el pronóstico oficial. Cuando la banda es ancha, el modelo no sabe bien qué pasará.",
+  },
   semana_base: {
     titulo: "Semana base",
     que: "La semana desde la que el modelo mira hacia adelante. Hoy es la última semana con clima observado; en un replay es unas tres semanas antes del pico de esa epidemia.",

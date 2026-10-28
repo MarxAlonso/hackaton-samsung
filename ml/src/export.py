@@ -172,6 +172,21 @@ def write_cdc_ts(cdc, districts):
         f"export const CDC2026 = {json.dumps(data, ensure_ascii=False, indent=2)} as const;\n", encoding="utf-8")
 
 
+def write_noaa_ts(enso):
+    """Resumen del pronóstico de NOAA como módulo TypeScript para la base de conocimiento de la IA (mismas cifras que la página)."""
+    if not enso:
+        return
+    p, c, d = enso["probabilidades_oficiales"], enso["cfsv2_nino12"], enso.get("discusion", {})
+    peak = max(c["pronostico"], key=lambda r: r["media"])
+    data = {"descargado": enso["descargado"], "emitido": p["emitido"], "estado_alerta": d.get("estado_alerta"), "discusion_emitida": d.get("emitido"),
+            "proxima_discusion": d.get("proxima_discusion"), "evento_historico": d.get("evento_historico"), "indices_ultimo_mes_C": d.get("indices_ultimo_mes_C"),
+            "temporadas": [{"etiqueta": t["etiqueta"], "el_nino_pct": t["el_nino_pct"], "neutral_pct": t["neutral_pct"], "muy_fuerte_pct": t["el_nino_por_fuerza_pct"]["muy_fuerte"], "fuerte_pct": t["el_nino_por_fuerza_pct"]["fuerte"]} for t in p["temporadas"]],
+            "nino12_observado": c["observado"][-3:], "nino12_pronostico": c["pronostico"], "nino12_maximo": peak}
+    (WEB_DATA.parent.parent / "src" / "lib" / "noaa2027.ts").write_text(
+        "// Generado por ml/src/export.py a partir de los pronósticos de NOAA CPC. No editar a mano.\n"
+        f"export const NOAA2027 = {json.dumps(data, ensure_ascii=False, indent=2)} as const;\n", encoding="utf-8")
+
+
 def dengue_2026_cdc():
     """Casos 2026 por distrito de la sala situacional del CDC (los distritos con más casos de cada departamento)."""
     table_p, meta_p, rows_p = (REFERENCE_DIR / f for f in ("dengue_2026_distritos_cdc.csv", "dengue_2026_distritos_cdc.meta.json", "dengue_2026_filas_cdc.csv"))
@@ -324,6 +339,7 @@ def main():
         },
         "calibracion_acumulado_oficial": read_json(REPORTS / "calibration_ytd.json") if (REPORTS / "calibration_ytd.json").exists() else None,
         "dengue_2026_cdc": dengue_2026_cdc(),
+        "nino_2027": read_json(REFERENCE_DIR / "enso_outlook.json") if (REFERENCE_DIR / "enso_outlook.json").exists() else None,
         "monitoreo": read_json(REPORTS / "monitoring.json"),
         "validacion_externa_2026": read_json(REPORTS / "validation_gore.json"),
         "contexto_oficial_2026": read_json(ROOT / "reference" / "contexto_oficial_2026.json"),
@@ -340,6 +356,7 @@ def main():
     estab = establishments.build(DATA_RAW / "minsa" / "dengue_piura_gore.csv")
     (WEB_DATA / "establecimientos.json").write_text(json.dumps(estab, ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     write_cdc_ts(app["dengue_2026_cdc"], districts)
+    write_noaa_ts(app["nino_2027"])
     series = json.dumps(export_series(feats, districts), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     (WEB_DATA / "series.json").write_text(series, encoding="utf-8")
     print(f"Exportado series.json ({len(series) / 1024:.0f} KB)")

@@ -1,0 +1,232 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Acc from "../components/Acc.astro";
+import Help from "../components/Help.astro";
+import { icon } from "../lib/icons";
+import app from "../../public/data/app.json";
+
+const n: any = (app as any).nino_2027;
+const prob = n?.probabilidades_oficiales;
+const cfs = n?.cfsv2_nino12;
+const disc = n?.discusion ?? {};
+const obs = n?.observado;
+const MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const mesLabel = (ym: string) => `${MES[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
+const mesLargo = (ym: string) => `${["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"][Number(ym.slice(5, 7)) - 1]} de ${ym.slice(0, 4)}`;
+const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
+const EN_MES: Record<string, string> = { January: "enero", February: "febrero", March: "marzo", April: "abril", May: "mayo", June: "junio", July: "julio", August: "agosto", September: "septiembre", October: "octubre", November: "noviembre", December: "diciembre" };
+const esFecha = (s: string | null) => (s ? s.replace(/(\d+) ([A-Z][a-z]+) (\d{4})/, (_m, d, m, y) => `${d} de ${EN_MES[m] ?? m} de ${y}`) : "");
+const esTemp = (s: string) => s.replace(/([A-Z][a-z]+)-([A-Z][a-z]+)/, (_m, a, b) => `${EN_MES[a]?.slice(0, 3)}–${EN_MES[b]?.slice(0, 3)}`);
+
+// ---- Gráfico 1: probabilidades oficiales por temporada (barras apiladas: una sola rampa azul por fuerza) ----
+const temporadas = prob?.temporadas ?? [];
+const W1 = 760, H1 = 300, L1 = 44, B1 = 46, T1 = 14, R1 = 12;
+const slot = (W1 - L1 - R1) / Math.max(temporadas.length, 1);
+const bw = Math.min(56, slot * 0.68);
+const y1 = (v: number) => T1 + (1 - v / 100) * (H1 - T1 - B1);
+const FUERZA = [
+  { k: "debil", n: "El Niño débil", c: "var(--seq-2)" },
+  { k: "moderado", n: "moderado", c: "var(--seq-3)" },
+  { k: "fuerte", n: "fuerte", c: "var(--seq-5)" },
+  { k: "muy_fuerte", n: "muy fuerte", c: "var(--seq-7)" },
+];
+const peakSeason = temporadas.find((t: any) => t.temporada === "DJF") ?? temporadas.reduce((a: any, t: any) => (t.el_nino_por_fuerza_pct.muy_fuerte > (a?.el_nino_por_fuerza_pct.muy_fuerte ?? -1) ? t : a), null);
+const corta = (etq: string) => etq.replace(/ (\d{2})(\d{2})/g, " $2").replace(" – ", "–");
+const neutralSeason = temporadas.find((t: any) => t.neutral_pct >= 50);
+
+// ---- Gráfico 2: mar frente a Perú (Niño 1+2): observado y pronóstico con banda ----
+const serie = [...(cfs?.observado ?? []).map((o: any) => ({ mes: o.mes, v: o.valor, obs: true })), ...(cfs?.pronostico ?? []).map((f: any) => ({ mes: f.mes, v: f.media, p10: f.p10, p90: f.p90, obs: false }))];
+const W2 = 760, H2 = 300, L2 = 44, B2 = 40, T2 = 14, R2 = 12;
+const vals = serie.flatMap((s) => [s.v, s.p10 ?? s.v, s.p90 ?? s.v]);
+const yMax = Math.max(1, Math.ceil(Math.max(...vals, 0) + 0.5));
+const yMin = Math.min(0, Math.floor(Math.min(...vals, 0) - 0.5));
+const x2 = (i: number) => L2 + (i / Math.max(serie.length - 1, 1)) * (W2 - L2 - R2);
+const y2 = (v: number) => T2 + (1 - (v - yMin) / (yMax - yMin)) * (H2 - T2 - B2);
+const obsPts = serie.filter((s) => s.obs);
+const fcPts = serie.filter((s) => !s.obs);
+const iFirstFc = serie.findIndex((s) => !s.obs);
+const linea = (pts: typeof serie, from: number) => pts.map((p, k) => `${k ? "L" : "M"}${x2(from + k).toFixed(1)},${y2(p.v).toFixed(1)}`).join(" ");
+const banda = fcPts.length
+  ? `M${fcPts.map((p, k) => `${x2(iFirstFc + k).toFixed(1)},${y2(p.p90!).toFixed(1)}`).join(" L")} L${[...fcPts].reverse().map((p, k) => `${x2(iFirstFc + fcPts.length - 1 - k).toFixed(1)},${y2(p.p10!).toFixed(1)}`).join(" L")} Z`
+  : "";
+const ticks2 = Array.from({ length: yMax - yMin + 1 }, (_, k) => yMin + k).filter((t) => t % 1 === 0);
+const peak = cfs ? cfs.pronostico.reduce((a: any, b: any) => (b.media > a.media ? b : a)) : null;
+const ultimoObs = obs?.ultimos?.at(-1);
+const hist = disc.evento_historico;
+
+// Qué significa para Perú: la escala de ENFEN para El Niño costero (umbrales conocidos, como contexto)
+const ESCALA = [
+  { n: "Débil", r: "+0,4 a +1,0 °C" }, { n: "Moderado", r: "+1,0 a +1,7 °C" }, { n: "Fuerte", r: "+1,7 a +3,0 °C" }, { n: "Extraordinario", r: "más de +3,0 °C" },
+];
+const calendario = [
+  { cuando: "Ahora (oct–dic 2026)", que: "El mar frente a Perú ya está muy caliente. Es la ventana para preparar: limpiar quebradas y drenes, revisar stock de pruebas y camas, mapear criaderos y a las familias sin agua por red.", icono: "target" },
+  { cuando: "Verano (ene–mar 2027)", que: "Temporada de lluvias con el mar aún caliente: mayor riesgo de lluvias extremas, inundaciones y huaicos, y de dengue y leptospirosis después de cada lluvia. Alerta y respuesta.", icono: "flood" },
+  { cuando: "Otoño (abr–jun 2027)", que: "NOAA ve más probable que El Niño global vaya pasando a neutral, pero el pronóstico para el mar frente a Perú tiene mucha dispersión en esos meses. Vigilar y no bajar la guardia.", icono: "calendar" },
+];
+---
+
+<Layout title="Qué viene en 2027" active="nino2027" wide description="Pronóstico oficial de NOAA para El Niño 2026–2027 y qué significa para Tumbes, Piura y Lambayeque.">
+  {n ? (
+    <>
+      <section class="head" data-reveal>
+        <div>
+          <p class="eyebrow">Pronóstico · actualizado el {fecha(n.descargado)}</p>
+          <h1>Qué viene en 2027 <Help k="nino_2027" /></h1>
+          <p class="muted lead">Lo que dicen los pronósticos de NOAA (Estados Unidos) sobre El Niño y sobre el mar frente a Perú, descargados por script y en sus propias palabras. El aviso oficial de El Niño costero en el Perú lo da el ENFEN.</p>
+        </div>
+      </section>
+
+      <section class="kpis">
+        <div class="card kpi" data-reveal="0"><span class="ico-box brand"><Fragment set:html={icon("alertTriangle", 22)} /></span><div><span class="eyebrow">Estado en NOAA<Help k="noaa_estado" label="estado" /></span><strong>{disc.estado_alerta === "El Niño Advisory" ? "Aviso de El Niño" : disc.estado_alerta}</strong><span class="small muted">discusión del {disc.emitido ? fecha(disc.emitido) : "—"}</span></div></div>
+        <div class="card kpi" data-reveal="80"><span class="ico-box brand"><Fragment set:html={icon("wave", 22)} /></span><div><span class="eyebrow">Mar frente a Perú (Niño 1+2)<Help k="nino12" label="Niño 1+2" /></span><strong>+{(disc.indices_ultimo_mes_C?.nino12 ?? ultimoObs?.nino12 ?? 0).toFixed(1)} °C</strong><span class="small muted">último mes completo, sobre lo normal</span></div></div>
+        {peakSeason && <div class="card kpi" data-reveal="160"><span class="ico-box brand"><Fragment set:html={icon("trendingUp", 22)} /></span><div><span class="eyebrow">El Niño muy fuerte<Help k="noaa_probabilidades" label="probabilidad" /></span><strong>{peakSeason.el_nino_por_fuerza_pct.muy_fuerte}%</strong><span class="small muted">en el verano ({peakSeason.etiqueta})</span></div></div>}
+        {hist && <div class="card kpi" data-reveal="240"><span class="ico-box brand"><Fragment set:html={icon("award", 22)} /></span><div><span class="eyebrow">Evento histórico<Help k="evento_historico" label="evento histórico" /></span><strong>{Math.max(...Object.values(hist.probabilidades_pct as Record<string, number>))}%</strong><span class="small muted">de superar todos los El Niño desde 1950</span></div></div>}
+      </section>
+
+      <p class="notice small" data-reveal>
+        <strong>En palabras de NOAA ({disc.emitido ? fecha(disc.emitido) : "última discusión"}):</strong> «{disc.sintesis_en}». Traducción: El Niño sigue fortaleciéndose; es probable que sea fuerte o muy fuerte hasta enero–marzo de 2027 (más de 83% de probabilidad). Próxima actualización: {esFecha(disc.proxima_discusion)}.
+      </p>
+
+      <Acc open title="¿Qué tan fuerte será El Niño? Probabilidades oficiales de NOAA" icon="chart" help="noaa_probabilidades"
+           summary={`Emitido en ${mesLargo(prob.emitido + "-01")} · ${peakSeason ? `${peakSeason.el_nino_por_fuerza_pct.muy_fuerte}% de El Niño muy fuerte en el verano (${peakSeason.etiqueta})` : ""}${neutralSeason ? ` · vuelve a neutral hacia ${neutralSeason.etiqueta}` : ""}`}>
+        <p class="small muted">Cada barra es una temporada de 3 meses. La altura azul es la probabilidad de El Niño; el tono dice qué tan fuerte (más oscuro, más fuerte). Lo que falta hasta 100% es neutral (gris) o La Niña. Se mide en la región Niño 3.4 del Pacífico central, con el índice RONI.</p>
+        <div class="chart-wrap">
+          <svg viewBox={`0 0 ${W1} ${H1}`} role="img" aria-label="Probabilidad de El Niño por temporada y por fuerza, según NOAA">
+            {[0, 25, 50, 75, 100].map((t) => (
+              <>
+                <line x1={L1} x2={W1 - R1} y1={y1(t)} y2={y1(t)} stroke="var(--border)" />
+                <text x={L1 - 8} y={y1(t) + 4} font-size="11" text-anchor="end" fill="var(--text-3)">{t}%</text>
+              </>
+            ))}
+            {temporadas.map((t: any, i: number) => {
+              const cx = L1 + i * slot + slot / 2;
+              let acc = 0;
+              const segs = [...FUERZA].map((f) => {
+                const v = t.el_nino_por_fuerza_pct[f.k];
+                const seg = { ...f, v, y0: acc, y1: acc + v };
+                acc += v;
+                return seg;
+              });
+              return (
+                <g>
+                  <rect x={cx - bw / 2} y={y1(100)} width={bw} height={y1(0) - y1(100)} fill="var(--surface-2)" rx="4" />
+                  {segs.filter((s) => s.v > 0).map((s) => (
+                    <rect x={cx - bw / 2} y={y1(s.y1)} width={bw} height={Math.max(0, y1(s.y0) - y1(s.y1) - 1)} fill={s.c} rx="2">
+                      <title>{t.etiqueta}: El Niño {s.n} {s.v}%</title>
+                    </rect>
+                  ))}
+                  {t.neutral_pct > 0 && <rect x={cx - bw / 2} y={y1(t.el_nino_pct + t.neutral_pct)} width={bw} height={Math.max(0, y1(t.el_nino_pct) - y1(t.el_nino_pct + t.neutral_pct) - 1)} fill="var(--surface-3)" rx="2"><title>{t.etiqueta}: neutral {t.neutral_pct}%</title></rect>}
+                  <text x={cx} y={y1(0) + 16} font-size="11" text-anchor="middle" fill="var(--text-2)" font-weight="600">{t.temporada}</text>
+                  <text x={cx} y={y1(0) + 30} font-size="10" text-anchor="middle" fill="var(--text-3)">{corta(t.etiqueta)}</text>
+                  {t.el_nino_pct > 0 && <text x={cx} y={y1(t.el_nino_pct) - 5} font-size="11" text-anchor="middle" fill="var(--text)" font-weight="700">{t.el_nino_pct}%</text>}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <div class="legend">
+          {FUERZA.map((f) => <span><i class="box" style={`background:${f.c}`}></i>{f.n}</span>)}
+          <span><i class="box" style="background:var(--surface-3)"></i>Neutral</span>
+        </div>
+        <details class="small table-details"><summary>Ver la tabla</summary>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Temporada</th><th class="num">El Niño</th><th class="num">muy fuerte</th><th class="num">fuerte</th><th class="num">moderado</th><th class="num">débil</th><th class="num">Neutral</th><th class="num">La Niña</th></tr></thead>
+            <tbody>{temporadas.map((t: any) => <tr><td>{t.etiqueta}</td><td class="num"><strong>{t.el_nino_pct}%</strong></td><td class="num">{t.el_nino_por_fuerza_pct.muy_fuerte}%</td><td class="num">{t.el_nino_por_fuerza_pct.fuerte}%</td><td class="num">{t.el_nino_por_fuerza_pct.moderado}%</td><td class="num">{t.el_nino_por_fuerza_pct.debil}%</td><td class="num">{t.neutral_pct}%</td><td class="num">{t.la_nina_pct}%</td></tr>)}</tbody>
+          </table></div>
+        </details>
+        <p class="small muted">Fuente: <a href={prob.url} target="_blank" rel="noopener">NOAA Climate Prediction Center, Official ENSO Strength Probabilities</a>, emitido en {mesLargo(prob.emitido + "-01")}. Se actualiza el segundo jueves de cada mes.</p>
+      </Acc>
+
+      <Acc open title="El mar frente a Perú: lo observado y lo que pronostica el modelo CFSv2" icon="wave" help="cfsv2"
+           summary={`Hoy +${(disc.indices_ultimo_mes_C?.nino12 ?? 0).toFixed(1)} °C · el modelo lo ve en +${peak?.media} °C en ${mesLabel(peak?.mes ?? "2026-11")} y bajando hacia el otoño de 2027`}>
+        <p class="small muted">Anomalía mensual de la temperatura del mar en la región Niño 1+2 (frente a Perú y Ecuador), en grados sobre lo normal. Los puntos naranjas son lo observado; la línea azul es el promedio de 40 corridas del modelo CFSv2 de NOAA y la banda, el rango entre el 10% y el 90% de esas corridas.</p>
+        <div class="chart-wrap">
+          <svg viewBox={`0 0 ${W2} ${H2}`} role="img" aria-label="Temperatura del mar frente a Perú, observada y pronosticada por el modelo CFSv2">
+            {ticks2.map((t) => (
+              <>
+                <line x1={L2} x2={W2 - R2} y1={y2(t)} y2={y2(t)} stroke={t === 0 ? "var(--threshold)" : "var(--border)"} stroke-dasharray={t === 0 ? "4 3" : undefined} />
+                <text x={L2 - 8} y={y2(t) + 4} font-size="11" text-anchor="end" fill="var(--text-3)">{t > 0 ? "+" : ""}{t} °C</text>
+              </>
+            ))}
+            {iFirstFc > 0 && <line x1={x2(iFirstFc - 0.5)} x2={x2(iFirstFc - 0.5)} y1={T2} y2={H2 - B2} stroke="var(--text-3)" stroke-dasharray="3 3" />}
+            {iFirstFc > 0 && <text x={x2(iFirstFc - 0.5) + 6} y={T2 + 12} font-size="11" fill="var(--text-2)">pronóstico →</text>}
+            <line x1={L2} x2={W2 - R2} y1={y2(3)} y2={y2(3)} stroke="var(--critical)" stroke-width="1" stroke-dasharray="6 4" opacity="0.8" />
+            <text x={L2 + 6} y={y2(3) - 6} font-size="10" fill="var(--critical-ink)">+3 °C: «extraordinario» (escala del ENFEN)</text>
+            {banda && <path d={banda} fill="var(--series-band)" />}
+            {obsPts.length > 1 && <path d={linea(obsPts, 0)} fill="none" stroke="var(--series-2)" stroke-width="2" />}
+            {fcPts.length > 1 && <path d={linea(fcPts, iFirstFc)} fill="none" stroke="var(--series-1)" stroke-width="2" />}
+            {serie.map((p, i) => (
+              <circle cx={x2(i)} cy={y2(p.v)} r="4.5" fill={p.obs ? "var(--series-2)" : "var(--series-1)"} stroke="var(--surface)" stroke-width="2">
+                <title>{mesLabel(p.mes)}: {p.v > 0 ? "+" : ""}{p.v.toFixed(2)} °C{p.obs ? " (observado)" : ` (pronóstico; rango ${p.p10!.toFixed(1)} a ${p.p90!.toFixed(1)})`}</title>
+              </circle>
+            ))}
+            {serie.map((p, i) => (i % 2 === 0 || i === serie.length - 1) && <text x={x2(i)} y={H2 - B2 + 18} font-size="11" text-anchor="middle" fill="var(--text-3)">{mesLabel(p.mes)}</text>)}
+          </svg>
+        </div>
+        <div class="legend"><span><i style="background:var(--series-2)"></i>Observado</span><span><i style="background:var(--series-1)"></i>Pronóstico (promedio)</span><span><i class="box" style="background:var(--series-band)"></i>Rango 10–90% de las corridas</span></div>
+        <details class="small table-details"><summary>Ver la tabla</summary>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Mes</th><th class="num">Promedio</th><th class="num">Rango 10–90%</th><th>Tipo</th></tr></thead>
+            <tbody>{serie.map((p) => <tr><td>{mesLargo(p.mes)}</td><td class="num">{p.v > 0 ? "+" : ""}{p.v.toFixed(2)} °C</td><td class="num">{p.obs ? "—" : `${p.p10!.toFixed(2)} a ${p.p90!.toFixed(2)}`}</td><td>{p.obs ? "observado" : "pronóstico"}</td></tr>)}</tbody>
+          </table></div>
+        </details>
+        <p class="small muted">Fuente: <a href={cfs.url} target="_blank" rel="noopener">NOAA CPC, pronóstico CFSv2 de la región Niño 1+2</a> ({cfs.generado ? `generado el ${fecha(cfs.generado)}` : "última corrida"}). Es un solo modelo, no el pronóstico oficial: sirve para ver la tendencia y la incertidumbre.</p>
+      </Acc>
+
+      <Acc title="¿Qué significa para Tumbes, Piura y Lambayeque?" icon="map" help="nino_2027" open>
+        <p>NOAA pronostica El Niño <strong>global</strong> (Pacífico central) y el modelo CFSv2 el mar <strong>frente a Perú</strong>. El que declara «El Niño costero» y su magnitud en el Perú es el <strong>ENFEN</strong>, que mantiene el estado de alerta (comunicado 16-2026) y prevé caudales sobre lo normal en los ríos Tumbes, Chira, Piura y Lambayeque.</p>
+        <div class="two">
+          <div>
+            <h3>Escala del ENFEN para El Niño costero</h3>
+            <p class="small muted">Según la anomalía del mar frente a Perú (Niño 1+2) promediada en 3 meses.</p>
+            <ul class="escala">{ESCALA.map((e) => <li><strong>{e.n}</strong><span>{e.r}</span></li>)}</ul>
+            <p class="small muted">Hoy el valor mensual está en <strong>+{(disc.indices_ultimo_mes_C?.nino12 ?? 0).toFixed(1)} °C</strong>; los grandes eventos de 1983, 1998 y 2017 pasaron de +3 °C.</p>
+          </div>
+          <div>
+            <h3>Calendario de preparación</h3>
+            <ol class="timeline">{calendario.map((c) => <li><span class="acc-ico"><Fragment set:html={icon(c.icono, 18)} /></span><div><strong>{c.cuando}</strong><p class="small muted">{c.que}</p></div></li>)}</ol>
+          </div>
+        </div>
+        <div class="cta">
+          <a class="btn primary" href="/autoridad"><Fragment set:html={icon("hospital", 18)} /> Ver qué distritos vigilar hoy</a>
+          <a class="btn" href="/impacto"><Fragment set:html={icon("droplet", 18)} /> Alimentos y suministros en riesgo</a>
+          <a class="btn" href="/ciudadano"><Fragment set:html={icon("home", 18)} /> Qué hacer en mi casa</a>
+        </div>
+      </Acc>
+
+      <Acc title="Qué no dice este pronóstico" icon="info" summary="Es probabilidad, no certeza; NOAA no declara El Niño costero; los efectos en salud dependen de cada distrito">
+        <ul class="small">
+          <li>Son probabilidades: un 81% de El Niño muy fuerte deja un 19% de que no lo sea. NOAA actualiza cada mes y las cifras cambian.</li>
+          <li>La fuerza del fenómeno no es lo mismo que la fuerza de sus impactos: un evento muy fuerte hace más probables las lluvias intensas en la costa norte, pero no garantiza una fecha ni una magnitud por distrito.</li>
+          <li>NOAA mide El Niño global en el Pacífico central (Niño 3.4). El Niño costero que afecta al Perú se mide frente a nuestra costa (Niño 1+2) y lo declara el ENFEN. Ambos están hoy muy por encima de lo normal.</li>
+          <li>El modelo CFSv2 es uno de varios; su banda muestra solo la incertidumbre de ese modelo. Para abril–julio de 2027 la dispersión es grande.</li>
+          <li>Este sitio no emite alertas oficiales: apoya la decisión y no reemplaza al ENFEN, al Senamhi ni al Minsa.</li>
+        </ul>
+      </Acc>
+    </>
+  ) : (
+    <section class="card"><h1>Qué viene en 2027</h1><p class="muted">Todavía no se descargó el pronóstico de NOAA. Corre el pipeline (<code>bash ml/run_pipeline.sh</code>) para traerlo.</p></section>
+  )}
+</Layout>
+
+<style>
+  .head { padding: 8px 0 18px; }
+  .lead { font-size: 1.05rem; max-width: 820px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi { display: flex; gap: 12px; align-items: center; padding: 16px; }
+  .kpi > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .kpi strong { font-size: 1.45rem; }
+  .notice { margin-bottom: 14px; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; margin: 6px 0 14px; }
+  .escala { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+  .escala li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--surface-2); border-radius: 8px; }
+  .timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .timeline li { display: flex; gap: 12px; align-items: flex-start; }
+  .timeline p { margin: 2px 0 0; }
+  .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .table-details { margin-top: 10px; }
+  .table-wrap { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--border); }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+</style>

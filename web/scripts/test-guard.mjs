@@ -12,6 +12,7 @@ import { GLOSARIO } from "../src/lib/glossary.ts";
 import { CONOCIMIENTO, HECHOS_OFICIALES } from "../src/lib/knowledge.ts";
 import { CDC2026 } from "../src/lib/cdc2026.ts";
 import { PRODUCTOS, LIMITES_IMPACTO } from "../src/lib/impacto_alimentos.ts";
+import { NOAA2027 } from "../src/lib/noaa2027.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -236,12 +237,27 @@ test("cada alimento en riesgo trae fuente con enlace, fecha y origen, y las esti
   assert.ok(CONOCIMIENTO.includes("178 595") && CONOCIMIENTO.includes("93%"));
 });
 
+test("el pronóstico 2027 de la IA coincide con el archivo descargado de NOAA y es coherente", () => {
+  const ref = JSON.parse(readFileSync(join(root, "..", "ml", "reference", "enso_outlook.json"), "utf8"));
+  assert.equal(NOAA2027.emitido, ref.probabilidades_oficiales.emitido);
+  assert.equal(NOAA2027.temporadas.length, ref.probabilidades_oficiales.temporadas.length);
+  for (const [i, t] of ref.probabilidades_oficiales.temporadas.entries()) {
+    assert.equal(NOAA2027.temporadas[i].el_nino_pct, t.el_nino_pct);
+    assert.ok(t.el_nino_pct + t.neutral_pct + t.la_nina_pct >= 98 && t.el_nino_pct + t.neutral_pct + t.la_nina_pct <= 102, `${t.temporada}: las probabilidades deben sumar ~100`);
+  }
+  const first = ref.probabilidades_oficiales.temporadas[0].etiqueta;
+  assert.match(first, /2026/, "la primera temporada debe ser de 2026, no de 2027");
+  const nums = numerosPermitidos(CONOCIMIENTO);
+  for (const f of ref.cfsv2_nino12.pronostico) assert.ok(nums.has(f.media), `la IA debe conocer +${f.media} °C de ${f.mes}`);
+  assert.ok(CONOCIMIENTO.includes("ENFEN"));
+});
+
 test("el glosario está completo y la IA no recibe nada fuera de él", () => {
   for (const [k, e] of Object.entries(GLOSARIO)) {
     assert.ok(e.titulo && e.que && e.que.length > 20, `entrada incompleta: ${k}`);
     assert.ok(!/<|>/.test(JSON.stringify(e)), `${k} no debe llevar HTML`);
   }
-  assert.ok(CONOCIMIENTO.length < 16000, `la base de conocimiento es muy larga (${CONOCIMIENTO.length})`);
+  assert.ok(CONOCIMIENTO.length < 20000, `la base de conocimiento es muy larga (${CONOCIMIENTO.length})`);
   assert.ok(CONOCIMIENTO.includes("El Niño costero"));
 });
 

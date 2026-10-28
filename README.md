@@ -99,11 +99,13 @@ Hay **dos modelos**. Los casos oficiales por distrito llegan con meses de retras
 | **Contexto oficial 2026** | En el panel de autoridad, las cifras del CDC y de la alerta epidemiológica N.° 008-2026 del Minsa, con sus fuentes, junto al ranking del modelo. |
 | **Establecimientos que notifican** | Para los distritos de Piura, los 5 establecimientos que más casos de dengue notifican en las últimas 8 semanas y su tendencia (carga de notificación, no una predicción por establecimiento). |
 | **Voz y texto grande** | El ciudadano puede escuchar el aviso en voz alta y agrandar el texto (dos niveles) desde cualquier página. |
+| **Qué viene en 2027** | Página con los pronósticos de NOAA (Estados Unidos), descargados por script: las probabilidades oficiales de El Niño por temporada y por fuerza (región Niño 3.4, índice RONI), el pronóstico del modelo CFSv2 para el mar frente a Perú (Niño 1+2, 40 corridas, con banda de incertidumbre), la discusión mensual en sus palabras, la escala del ENFEN y un calendario de preparación. NOAA pronostica El Niño global; el que declara El Niño costero es el ENFEN. |
 | **Casos 2026 por distrito** | En el detalle de cada distrito, los casos de 2026 notificados al CDC (acumulado, tasa por 100 mil, última semana y defunciones) frente al mismo periodo de 2025. Sale del informe semanal de la sala situacional de dengue del CDC, que solo trae los distritos con más casos. |
 | **Ajuste con el acumulado oficial** | El modelo de solo clima se corrige con el total de casos del año por departamento (informe del CDC). En la prueba histórica 2022 a 2025 el sesgo baja de 6,5 a 2 veces, el rango P10 a P90 pasa de 64% a 83% y el error por distrito baja 14%. Hoy: Piura ×2,4, Tumbes ×1,4, Lambayeque ×5,0. |
 | **Alimentos y suministros** | Página con los distritos mapeados (lluvia pronosticada, población sin agua por red, casos esperados, pruebas rápidas, camas y brigadas) y los alimentos y cultivos en riesgo (arroz, mango, banano orgánico, carreteras y más), cada dato con su fuente, fecha y enlace, distinguiendo lo oficial de las estimaciones de terceros. No hay datos de cultivos por distrito y no se incluye pesca. |
 | **Calculadora de impacto económico** | En el plan de acción: gasto, ahorro, ahorro neto, retorno por sol invertido, costo por caso evitado, efectividad mínima para que el plan se pague y una tabla de sensibilidad. Los costos son de ejemplo y editables. |
 | **Titular de impacto** | En la portada, el replay de 2023: con un modelo entrenado solo hasta 2021, la alerta acertó en 45 de 47 distritos y previó 33 161 casos frente a los 30 301 reales. |
+| **Diseño** | Tipografía Plus Jakarta Sans, barra superior con desenfoque, tarjetas y botones con respuesta al pasar el cursor, aparición suave al hacer scroll, números que cuentan y una portada con mar, lluvia y sol animados. Todo el movimiento se apaga con `prefers-reduced-motion`. |
 | **Apartados y botón «?»** | Cada página abre lo esencial y deja el detalle en apartados desplegables, con una línea de resumen visible aunque estén cerrados. Cada término técnico tiene un botón «?» con su explicación, tomada de un único glosario (`web/src/lib/glossary.ts`). |
 | **Reporte ciudadano anónimo** | "Veo criaderos" o "hay personas con fiebre" en mi distrito. Solo se guarda un conteo por distrito, tipo y semana: sin texto, sin IP, sin identificador, con tope diario. La autoridad lo ve como señal sin verificar y nunca entra al modelo. |
 
@@ -117,7 +119,7 @@ La IA (Llama 3.3 en Workers AI) solo **redacta**: los números salen del modelo 
 | **Durante** | Reglas obligatorias por encima de todo; una base de conocimiento acotada (el glosario y las cifras oficiales citadas); los datos y la pregunta se entregan como información, nunca como órdenes; el contexto que llega del navegador se limpia (claves, largo, textos que parecen órdenes); una sola vuelta, sin historial; tope de 15 consultas por minuto por visitante (se guarda un hash que vence en 60 s). |
 | **Después** | La respuesta se descarta si trae enlaces, correos, código, medicamentos o **cifras que no están en los datos**: cualquier cantidad con unidad (casos, pruebas, camas, mm, %, °C…) debe estar en el contexto o en la base de conocimiento. Si se descarta, se muestra el texto de respaldo armado en el navegador. |
 
-Se prueba con `npm test` en `web/` (16 pruebas: manipulación, otros temas, peticiones médicas, cifras inventadas, coherencia de las cifras oficiales y de los alimentos con sus fuentes, y que cada botón «?» apunte a una definición real) y con la prueba de humo del sitio publicado. Las pruebas corren en cada publicación semanal. Ningún filtro es perfecto: el sitio es de apoyo a la decisión y la IA no sustituye al personal de salud.
+Se prueba con `npm test` en `web/` (17 pruebas: manipulación, otros temas, peticiones médicas, cifras inventadas, coherencia de las cifras oficiales, del pronóstico de NOAA y de los alimentos con sus fuentes, y que cada botón «?» apunte a una definición real) y con la prueba de humo del sitio publicado. Las pruebas corren en cada publicación semanal. Ningún filtro es perfecto: el sitio es de apoyo a la decisión y la IA no sustituye al personal de salud.
 
 ## Datos: qué es real y qué es simulado
 
@@ -158,6 +160,9 @@ La página del dataset de cada enfermedad lista el archivo vigente; el pipeline 
 |---|---|---|
 | Casos de dengue de Piura 2023, 2025 y 2026 y establecimiento que notificó | [Datos Abiertos, casos de dengue en la región Piura (Gobierno Regional)](https://www.datosabiertos.gob.pe/dataset/casos-de-dengue-en-la-regi%C3%B3n-piura-gobierno-regional-piura) | Validación externa del modelo de hoy, gráficos y ranking de establecimientos. Sus conteos no son comparables con los del CDC. |
 | Casos 2026 por distrito y totales por departamento (acumulado y última semana; solo los distritos con más casos, el resto agrupado) | [Sala situacional de dengue del CDC, informe semanal en PDF](https://www.dge.gob.pe/portal/docs/vigilancia/sala/2026/SE38/dengue.pdf) (el pipeline baja el más reciente: `.../sala/{año}/SE{semana}/dengue.pdf`) | Casos 2026 en el detalle de cada distrito, ajuste con el acumulado oficial y prueba histórica. Guardado en [`ml/reference/`](ml/reference/). |
+| Probabilidades oficiales de El Niño por temporada y fuerza | [NOAA CPC, Official ENSO Strength Probabilities](https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/strengths/) (tabla HTML; segundo jueves de cada mes) | Página «Qué viene en 2027» y base de conocimiento de la IA. |
+| Pronóstico del mar frente a Perú (Niño 1+2), 40 corridas del modelo CFSv2 | [NOAA CPC, CFSv2 `dataInd1/nino12Mon.nc`](https://www.cpc.ncep.noaa.gov/products/CFSv2/CFSv2seasonal.shtml) (NetCDF) | Gráfico observado y pronóstico con banda 10–90%. Es un solo modelo, no el pronóstico oficial. |
+| Discusión diagnóstica mensual de ENSO | [NOAA CPC, ENSO Diagnostic Discussion](https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml) | Estado del sistema de alerta, síntesis y probabilidad de un evento histórico. |
 | Totales de dengue 2026 por departamento (al 12/09/2026) | [Sala situacional de enfermedades metaxénicas, CDC Perú](https://app7.dge.gob.pe/maps2/shiny_metaxenicas_web/) y su informe "Dengue al 12/09/2026" (PDF) | Comprobar que el 2025 del archivo es válido y contrastar el ranking de hoy. Cifras transcritas en [`ml/reference/contexto_oficial_2026.json`](ml/reference/contexto_oficial_2026.json). |
 | Alerta epidemiológica N.° 008-2026 y cifras nacionales a la semana 40 | [Nota de prensa del Minsa, 20/10/2026](https://www.gob.pe/institucion/minsa/noticias/1459653-minsa-emite-alerta-epidemiologica-por-riesgo-de-incremento-de-enfermedades-ante-el-fen) | Contexto oficial 2026 en el panel de autoridad. |
 | Estado de alerta de El Niño costero | [Comunicado Oficial ENFEN N.° 16-2026](https://www.gob.pe/institucion/senamhi/informes-publicaciones/8596065-comunicado-oficial-enfen-n-16-2026) | Contexto oficial 2026. |
@@ -225,6 +230,7 @@ ml/ (Python: solo entrena y exporta)
   calibration.py  → factor de intensidad (sin fuga de información) e intervalos de confianza por distrito
   validate_gore.py → validación externa con los casos 2025–2026 de Piura; prueba la señal de arrastre
   establishments.py → establecimientos que más casos notifican por distrito (Piura)
+  ingest_enso_outlook.py → pronósticos de El Niño de NOAA (probabilidades oficiales, CFSv2 Niño 1+2, discusión)
   ingest_dge_sala.py → casos 2026 por distrito: baja y lee el informe semanal de dengue del CDC (PDF)
   calibration_ytd.py → ajuste con el acumulado oficial del año (solo clima)
   validate_ytd.py → prueba histórica del ajuste y factores de hoy por departamento
@@ -255,7 +261,7 @@ El modelo de **producción** (el retador promovido) predice "hoy" (solo clima mi
 cd ml
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Linux/Mac: .venv/bin/python
-bash run_pipeline.sh          # clima → casos → casos 2026 por distrito → tabla de casos → entrenamiento → monitoreo → reentrenamiento → validación externa → calibración con el acumulado oficial → exportación
+bash run_pipeline.sh          # clima → casos → casos 2026 por distrito → pronóstico de NOAA → tabla de casos → entrenamiento → monitoreo → reentrenamiento → validación externa → calibración con el acumulado oficial → exportación
 python -m pytest tests -q     # 54 pruebas del pipeline, los datos reales, las calibraciones y las alertas
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # experimentos (también en reports/experiments.jsonl)
 ```

@@ -50,6 +50,12 @@ const pasos = [
     mirar: ["Cuántos distritos tienen lluvia intensa o extrema pronosticada.", "El filtro por departamento: el total se recalcula.", "Arroz, mango y banano: cada dato con su fuente, y la marca de qué es oficial y qué es estimación de terceros.", "Lo que no sabemos: no hay datos de cultivos por distrito y no se incluye pesca."],
   },
   {
+    icon: "wave", min: "0:40", titulo: "Qué viene en 2027",
+    url: "/nino-2027/", foco: "main",
+    decir: "Los pronósticos de NOAA, descargados por script: la probabilidad de El Niño muy fuerte en cada temporada y cómo evolucionaría el mar frente a Perú según su modelo. El ENFEN es quien declara El Niño costero; aquí se muestran los dos.",
+    mirar: ["Las barras: qué tan fuerte sería El Niño en cada temporada y cuándo volvería a neutral.", "El mar frente a Perú: lo observado en naranja, el pronóstico en azul con su banda de incertidumbre.", "El calendario de preparación: ahora, verano y otoño de 2027.", "Lo que el pronóstico no dice."],
+  },
+  {
     icon: "shield", min: "0:40", titulo: "Lo que el modelo sí y no sabe",
     url: "/modelo/", foco: "main",
     decir: "Mostramos las métricas completas, también las malas. Con casos recientes el modelo detecta bien los brotes; solo con clima ordena los distritos pero calcula mal cuántos casos habrá. Lo que más lo mejoraría son los casos de 2026.",
@@ -123,7 +129,7 @@ const pasos = [
           <button type="button" class="btn" id="prev"><Fragment set:html={icon("arrowRight", 16)} /> Anterior</button>
           <button type="button" class="btn primary" id="next">Siguiente <Fragment set:html={icon("arrowRight", 16)} /></button>
         </footer>
-        <p class="g-help small muted">Atajos: flechas ← → para cambiar de paso. Total aproximado: 5 a 6 minutos. <a id="open-tab" href="/" target="_blank" rel="noopener">Abrir esta vista en una pestaña</a>.</p>
+        <p class="g-help small muted">Atajos: flechas ← → para cambiar de paso. Total aproximado: 6 a 7 minutos. <a id="open-tab" href="/" target="_blank" rel="noopener">Abrir esta vista en una pestaña</a>.</p>
       </aside>
 
       <section class="stage" aria-label="Sitio en vivo">

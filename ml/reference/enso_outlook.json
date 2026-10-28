@@ -1,0 +1,389 @@
+{
+ "descargado": "2026-10-28",
+ "nota": "NOAA pronostica El Niño global (Niño 3.4) y el mar frente a Perú (Niño 1+2); el aviso oficial de El Niño costero en el Perú lo emite el ENFEN.",
+ "probabilidades_oficiales": {
+  "emitido": "2026-10",
+  "fuente": "NOAA CPC, Official ENSO Strength Probabilities (índice RONI, región Niño 3.4)",
+  "url": "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/strengths/",
+  "temporadas": [
+   {
+    "temporada": "SON",
+    "etiqueta": "sep 2026 – nov 2026",
+    "inicio": "2026-09",
+    "la_nina_pct": 0,
+    "neutral_pct": 0,
+    "el_nino_pct": 100,
+    "el_nino_por_fuerza_pct": {
+     "debil": 0,
+     "moderado": 0,
+     "fuerte": 0,
+     "muy_fuerte": 100
+    }
+   },
+   {
+    "temporada": "OND",
+    "etiqueta": "oct 2026 – dic 2026",
+    "inicio": "2026-10",
+    "la_nina_pct": 0,
+    "neutral_pct": 0,
+    "el_nino_pct": 100,
+    "el_nino_por_fuerza_pct": {
+     "debil": 0,
+     "moderado": 0,
+     "fuerte": 0,
+     "muy_fuerte": 100
+    }
+   },
+   {
+    "temporada": "NDJ",
+    "etiqueta": "nov 2026 – ene 2027",
+    "inicio": "2026-11",
+    "la_nina_pct": 0,
+    "neutral_pct": 0,
+    "el_nino_pct": 100,
+    "el_nino_por_fuerza_pct": {
+     "debil": 0,
+     "moderado": 0,
+     "fuerte": 4,
+     "muy_fuerte": 96
+    }
+   },
+   {
+    "temporada": "DJF",
+    "etiqueta": "dic 2026 – feb 2027",
+    "inicio": "2026-12",
+    "la_nina_pct": 0,
+    "neutral_pct": 0,
+    "el_nino_pct": 100,
+    "el_nino_por_fuerza_pct": {
+     "debil": 0,
+     "moderado": 3,
+     "fuerte": 16,
+     "muy_fuerte": 81
+    }
+   },
+   {
+    "temporada": "JFM",
+    "etiqueta": "ene 2027 – mar 2027",
+    "inicio": "2027-01",
+    "la_nina_pct": 0,
+    "neutral_pct": 0,
+    "el_nino_pct": 100,
+    "el_nino_por_fuerza_pct": {
+     "debil": 2,
+     "moderado": 15,
+     "fuerte": 37,
+     "muy_fuerte": 46
+    }
+   },
+   {
+    "temporada": "FMA",
+    "etiqueta": "feb 2027 – abr 2027",
+    "inicio": "2027-02",
+    "la_nina_pct": 0,
+    "neutral_pct": 2,
+    "el_nino_pct": 98,
+    "el_nino_por_fuerza_pct": {
+     "debil": 16,
+     "moderado": 44,
+     "fuerte": 32,
+     "muy_fuerte": 6
+    }
+   },
+   {
+    "temporada": "MAM",
+    "etiqueta": "mar 2027 – may 2027",
+    "inicio": "2027-03",
+    "la_nina_pct": 0,
+    "neutral_pct": 15,
+    "el_nino_pct": 85,
+    "el_nino_por_fuerza_pct": {
+     "debil": 48,
+     "moderado": 32,
+     "fuerte": 5,
+     "muy_fuerte": 0
+    }
+   },
+   {
+    "temporada": "AMJ",
+    "etiqueta": "abr 2027 – jun 2027",
+    "inicio": "2027-04",
+    "la_nina_pct": 1,
+    "neutral_pct": 54,
+    "el_nino_pct": 45,
+    "el_nino_por_fuerza_pct": {
+     "debil": 38,
+     "moderado": 7,
+     "fuerte": 0,
+     "muy_fuerte": 0
+    }
+   },
+   {
+    "temporada": "MJJ",
+    "etiqueta": "may 2027 – jul 2027",
+    "inicio": "2027-05",
+    "la_nina_pct": 13,
+    "neutral_pct": 70,
+    "el_nino_pct": 17,
+    "el_nino_por_fuerza_pct": {
+     "debil": 15,
+     "moderado": 2,
+     "fuerte": 0,
+     "muy_fuerte": 0
+    }
+   }
+  ]
+ },
+ "discusion": {
+  "fuente": "NOAA CPC, ENSO Diagnostic Discussion",
+  "url": "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml",
+  "estado_alerta": "El Niño Advisory",
+  "sintesis_en": "El Niño continues to strengthen, with a strong-to-very strong El Niño likely through January-March 2027 (remaining greater than an 83% chance).",
+  "proxima_discusion": "12 November 2026",
+  "emitido": "2026-10-08",
+  "evento_historico": {
+   "definicion": "RONI de 3 meses de +2,5 °C o más: superaría todos los El Niño desde 1950",
+   "probabilidades_pct": {
+    "September-November": 54,
+    "October-December": 83,
+    "November-January": 70
+   }
+  },
+  "indices_ultimo_mes_C": {
+   "nino34": 2.1,
+   "nino3": 3.0,
+   "nino12": 3.9
+  }
+ },
+ "cfsv2_nino12": {
+  "fuente": "NOAA CPC, modelo CFSv2 (40 miembros), anomalía mensual de la región Niño 1+2 frente a Perú y Ecuador",
+  "url": "https://www.cpc.ncep.noaa.gov/products/CFSv2/dataInd1/nino12Mon.nc",
+  "generado": "2026-10-28",
+  "observado": [
+   {
+    "mes": "2025-11",
+    "valor": -0.34
+   },
+   {
+    "mes": "2025-12",
+    "valor": -0.42
+   },
+   {
+    "mes": "2026-01",
+    "valor": -0.29
+   },
+   {
+    "mes": "2026-02",
+    "valor": 0.91
+   },
+   {
+    "mes": "2026-03",
+    "valor": 1.33
+   },
+   {
+    "mes": "2026-04",
+    "valor": 1.59
+   },
+   {
+    "mes": "2026-05",
+    "valor": 1.88
+   },
+   {
+    "mes": "2026-06",
+    "valor": 2.91
+   },
+   {
+    "mes": "2026-07",
+    "valor": 3.61
+   },
+   {
+    "mes": "2026-08",
+    "valor": 4.09
+   },
+   {
+    "mes": "2026-09",
+    "valor": 4.7
+   },
+   {
+    "mes": "2026-10",
+    "valor": 5.26
+   }
+  ],
+  "pronostico": [
+   {
+    "mes": "2026-11",
+    "media": 3.97,
+    "p10": 3.66,
+    "p90": 4.26,
+    "miembros": 40
+   },
+   {
+    "mes": "2026-12",
+    "media": 3.9,
+    "p10": 3.61,
+    "p90": 4.23,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-01",
+    "media": 3.62,
+    "p10": 3.31,
+    "p90": 3.96,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-02",
+    "media": 2.94,
+    "p10": 2.54,
+    "p90": 3.35,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-03",
+    "media": 2.48,
+    "p10": 2.11,
+    "p90": 2.78,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-04",
+    "media": 2.22,
+    "p10": 1.85,
+    "p90": 2.59,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-05",
+    "media": 2.89,
+    "p10": 2.44,
+    "p90": 3.32,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-06",
+    "media": 3.47,
+    "p10": 2.89,
+    "p90": 4.21,
+    "miembros": 40
+   },
+   {
+    "mes": "2027-07",
+    "media": 2.28,
+    "p10": 0.76,
+    "p90": 4.05,
+    "miembros": 40
+   }
+  ]
+ },
+ "observado": {
+  "fuente": "NOAA CPC, índices Niño mensuales relativos (rel_mthsst9120.txt)",
+  "url": "https://www.cpc.ncep.noaa.gov/data/indices/rel_mthsst9120.txt",
+  "ultimos": [
+   {
+    "mes": "2025-07",
+    "nino12": 0.26,
+    "nino3": -0.26,
+    "nino4": -0.3,
+    "nino34": -0.39
+   },
+   {
+    "mes": "2025-08",
+    "nino12": -0.09,
+    "nino3": -0.58,
+    "nino4": -0.4,
+    "nino34": -0.66
+   },
+   {
+    "mes": "2025-09",
+    "nino12": -0.47,
+    "nino3": -0.76,
+    "nino4": -0.61,
+    "nino34": -0.79
+   },
+   {
+    "mes": "2025-10",
+    "nino12": -0.27,
+    "nino3": -0.66,
+    "nino4": -0.67,
+    "nino34": -0.82
+   },
+   {
+    "mes": "2025-11",
+    "nino12": -0.5,
+    "nino3": -0.85,
+    "nino4": -0.82,
+    "nino34": -0.96
+   },
+   {
+    "mes": "2025-12",
+    "nino12": -0.73,
+    "nino3": -1.01,
+    "nino4": -0.53,
+    "nino34": -0.92
+   },
+   {
+    "mes": "2026-01",
+    "nino12": -0.54,
+    "nino3": -0.9,
+    "nino4": -0.37,
+    "nino34": -0.98
+   },
+   {
+    "mes": "2026-02",
+    "nino12": 0.57,
+    "nino3": -0.44,
+    "nino4": -0.16,
+    "nino34": -0.65
+   },
+   {
+    "mes": "2026-03",
+    "nino12": 0.9,
+    "nino3": -0.22,
+    "nino4": -0.11,
+    "nino34": -0.49
+   },
+   {
+    "mes": "2026-04",
+    "nino12": 1.16,
+    "nino3": 0.07,
+    "nino4": 0.43,
+    "nino34": -0.03
+   },
+   {
+    "mes": "2026-05",
+    "nino12": 1.4,
+    "nino3": 0.68,
+    "nino4": 0.56,
+    "nino34": 0.46
+   },
+   {
+    "mes": "2026-06",
+    "nino12": 2.33,
+    "nino3": 1.21,
+    "nino4": 0.75,
+    "nino34": 1.04
+   },
+   {
+    "mes": "2026-07",
+    "nino12": 2.84,
+    "nino3": 1.73,
+    "nino4": 0.34,
+    "nino34": 1.38
+   },
+   {
+    "mes": "2026-08",
+    "nino12": 3.35,
+    "nino3": 2.49,
+    "nino4": 0.1,
+    "nino34": 1.75
+   },
+   {
+    "mes": "2026-09",
+    "nino12": 3.94,
+    "nino3": 2.97,
+    "nino4": -0.02,
+    "nino34": 2.06
+   }
+  ]
+ }
+}
