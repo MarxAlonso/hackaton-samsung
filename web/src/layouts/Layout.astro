@@ -12,13 +12,14 @@ interface Props {
 }
 const { title, description = "Alertas tempranas de dengue y enfermedades asociadas a El Niño por distrito.", active, wide = false } = Astro.props;
 const fechaCorta = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
+// short: lo que cabe en la barra de escritorio; label: el nombre completo (menú del celular y lectores de pantalla)
 const nav = [
-  { href: "/ciudadano", key: "ciudadano", label: "Soy ciudadano", icon: "home" },
-  { href: "/autoridad", key: "autoridad", label: "Autoridad de salud", icon: "hospital" },
-  { href: "/plan", key: "plan", label: "Plan de acción", icon: "target" },
-  { href: "/impacto", key: "impacto", label: "Alimentos", icon: "droplet" },
-  { href: "/nino-2027", key: "nino2027", label: "2027", icon: "wave" },
-  { href: "/modelo", key: "modelo", label: "Cómo funciona", icon: "cpu" },
+  { href: "/ciudadano", key: "ciudadano", short: "Ciudadano", label: "Soy ciudadano", icon: "home" },
+  { href: "/autoridad", key: "autoridad", short: "Autoridad", label: "Soy autoridad de salud", icon: "hospital" },
+  { href: "/plan", key: "plan", short: "Plan", label: "Plan de acción", icon: "target" },
+  { href: "/impacto", key: "impacto", short: "Alimentos", label: "Alimentos y suministros", icon: "droplet" },
+  { href: "/nino-2027", key: "nino2027", short: "2027", label: "Qué viene en 2027", icon: "wave" },
+  { href: "/modelo", key: "modelo", short: "Cómo funciona", label: "Cómo funciona el modelo", icon: "cpu" },
 ];
 ---
 
@@ -62,13 +63,16 @@ const nav = [
         </svg>
         <span>Alerta Salud <strong>Niño</strong></span>
       </a>
-      <nav aria-label="Principal">
+      <nav id="main-nav" class="main-nav" aria-label="Principal">
         {nav.map((item) => (
-          <a href={item.href} class:list={[{ active: active === item.key }]} aria-current={active === item.key ? "page" : undefined} aria-label={item.label} title={item.label}>
+          <a href={item.href} class:list={[{ active: active === item.key }]} aria-current={active === item.key ? "page" : undefined} title={item.label}>
             <Fragment set:html={icon(item.icon, 18)} />
-            <span>{item.label}</span>
+            <span class="lbl-short" aria-hidden="true">{item.short}</span>
+            <span class="lbl-long">{item.label}</span>
           </a>
         ))}
+      </nav>
+      <div class="tools">
         <button type="button" id="install-btn" class="install-btn" hidden title="Instalar la app en tu celular">
           <Fragment set:html={icon("smartphone", 18)} /><span>Instalar app</span>
         </button>
@@ -79,8 +83,12 @@ const nav = [
           <span class="ico-sun"><Fragment set:html={icon("sun", 18)} /></span>
           <span class="ico-moon"><Fragment set:html={icon("moon", 18)} /></span>
         </button>
-      </nav>
+        <button type="button" id="menu-toggle" class="menu-toggle" aria-expanded="false" aria-controls="main-nav" aria-label="Abrir el menú">
+          <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>
+        </button>
+      </div>
     </header>
+    <div class="menu-backdrop" id="menu-backdrop" hidden></div>
     <main class:list={[{ wide }]}>
       <slot />
     </main>
@@ -170,6 +178,24 @@ const nav = [
           else win.focus();
         }),
       );
+
+      // Menú del celular: se abre con el botón, se cierra con un enlace, con Esc, tocando fuera o al pasar a escritorio
+      const topbar = document.querySelector<HTMLElement>(".topbar")!;
+      const menuBtn = document.getElementById("menu-toggle")!;
+      const backdrop = document.getElementById("menu-backdrop")!;
+      const setMenu = (open: boolean) => {
+        topbar.classList.toggle("open", open);
+        document.body.classList.toggle("menu-open", open);
+        menuBtn.setAttribute("aria-expanded", String(open));
+        menuBtn.setAttribute("aria-label", open ? "Cerrar el menú" : "Abrir el menú");
+        backdrop.hidden = !open;
+        if (open) document.querySelector<HTMLElement>("#main-nav a")?.focus({ preventScroll: true });
+      };
+      menuBtn.addEventListener("click", () => setMenu(!topbar.classList.contains("open")));
+      backdrop.addEventListener("click", () => setMenu(false));
+      document.querySelectorAll("#main-nav a").forEach((a) => a.addEventListener("click", () => setMenu(false)));
+      addEventListener("keydown", (e) => { if (e.key === "Escape" && topbar.classList.contains("open")) { setMenu(false); menuBtn.focus(); } });
+      matchMedia("(min-width: 981px)").addEventListener("change", (e) => { if (e.matches) setMenu(false); });
 
       const toTop = document.getElementById("to-top")!;
       const progress = document.querySelector<HTMLElement>(".scroll-progress")!;
