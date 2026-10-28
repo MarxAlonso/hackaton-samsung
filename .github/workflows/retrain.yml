@@ -56,6 +56,13 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # Protecciones de la IA y glosario: si fallan, no se publica
+      - name: Pruebas de la web (IA y glosario)
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+
       - name: Publicar el sitio en Cloudflare
         working-directory: web
         env:

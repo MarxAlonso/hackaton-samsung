@@ -1,12 +1,14 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { icon } from "../lib/icons";
+import Acc from "../components/Acc.astro";
+import Help from "../components/Help.astro";
 ---
 
 <Layout title="Plan de acción" active="plan" wide description="Reparte las brigadas de control del dengue donde evitan más casos.">
   <section class="head">
     <div>
-      <h1>Plan de acción</h1>
+      <h1>Plan de acción <Help k="panel_plan" /></h1>
       <p class="muted">Con las brigadas que tienes disponibles, ¿en qué distritos las pones para evitar más casos de dengue en las próximas 4 semanas?</p>
     </div>
     <div class="filters no-print" role="group" aria-label="Filtros">
@@ -32,8 +34,8 @@ import { icon } from "../lib/icons";
 
   <p id="plan-note" class="notice" hidden></p>
 
-  <section class="card controls no-print" aria-label="Supuestos del plan">
-    <h2 class="chart-title"><Fragment set:html={icon("target", 20)} /> Tus recursos y supuestos</h2>
+  <Acc title="Tus recursos y supuestos" icon="target" help="plan_brigadas" open class="controls no-print"
+       summary="Brigadas disponibles, habitantes por brigada, efectividad y criterio de decisión">
     <p class="chart-sub">Mueve los controles y el plan se recalcula al instante. Los supuestos son editables: valídalos con la DIRESA.</p>
     <div class="ctl-grid">
       <label>Brigadas disponibles <output id="o-brig">12</output>
@@ -72,7 +74,7 @@ import { icon } from "../lib/icons";
       </div>
       <p class="small muted">Incluyen, según el caso, atención médica, hospitalización y días de trabajo perdidos. Estos montos son de ejemplo: la cifra real debe salir de la DIRESA o de un estudio de costos del MINSA.</p>
     </details>
-  </section>
+  </Acc>
 
   <section class="kpis" id="kpis" aria-live="polite"></section>
 
@@ -88,32 +90,32 @@ import { icon } from "../lib/icons";
       <div id="narrative" class="narrative"></div>
       <div class="actions-row no-print">
         <button class="btn primary" id="plan-ai" type="button"><Fragment set:html={icon("sparkles", 18)} /> Justificar este plan con IA</button>
+        <Help k="ia" label="IA" />
         <button class="btn" id="plan-print" type="button"><Fragment set:html={icon("fileText", 18)} /> Imprimir / guardar PDF</button>
       </div>
       <div id="plan-ai-box" class="ai-box" hidden></div>
     </div>
   </section>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("layers", 20)} /> Dónde poner cada brigada</h2>
+  <Acc title="Dónde poner cada brigada" icon="layers" open summary="Distritos en orden de prioridad, con las brigadas asignadas y la cobertura">
     <p class="chart-sub">En orden de prioridad. "Cobertura" es qué parte del distrito alcanzan las brigadas asignadas.</p>
     <div class="table-wrap"><table class="plan-table" id="plan-table"></table></div>
-  </section>
+  </Acc>
 
-  <section class="card limits">
-    <h2 class="chart-title"><Fragment set:html={icon("info", 20)} /> Cómo se calcula y qué límites tiene</h2>
+  <Acc title="Cómo se calcula y qué límites tiene" icon="info" summary="El método es exacto, pero los supuestos son de ejemplo: valídalos con la DIRESA">
     <ul class="small">
       <li><strong>Método:</strong> cada brigada se coloca donde evita más casos esperados por brigada. Como el beneficio crece de forma lineal, este reparto es el óptimo exacto (verificado contra programación dinámica en los tests).</li>
       <li><strong>Casos esperados:</strong> salen del modelo de dengue (rango P10–P90 a 4 semanas). El criterio prudente usa el escenario pesimista.</li>
       <li><strong>Supuestos a validar:</strong> la efectividad (30% por defecto), cuántos habitantes cubre una brigada y los costos son valores de ejemplo. El efecto real depende de la calidad y la oportunidad de la intervención.</li>
       <li><strong>Lo que no incluye:</strong> traslado entre distritos, brigadas con capacidades distintas ni la reducción del contagio a distritos vecinos. Es una guía de priorización, no una orden de operaciones.</li>
     </ul>
-  </section>
+  </Acc>
 </Layout>
 
 <script>
   import { loadData, badge, fmt, pct, weekLabel, type AppData } from "../lib/data";
   import { icon } from "../lib/icons";
+  import { helpBtn } from "../lib/ui";
   import { optimize, type OptDistrict, type OptResult } from "../lib/optimizer";
   import { explain } from "../lib/explain";
 
@@ -154,14 +156,14 @@ import { icon } from "../lib/icons";
     const t = res.optimo.total, e = res.estrategias;
     const extra = t[`evitados_${q}`] - e.parejo[`evitados_${q}`];
     const mejora = e.parejo[`evitados_${q}`] > 0 ? (100 * extra) / e.parejo[`evitados_${q}`] : null;
-    const kpi = (ico: string, label: string, value: string, sub: string) =>
-      `<div class="card kpi"><span class="ico-box brand">${icon(ico, 22)}</span><div><span class="eyebrow">${label}</span><strong>${value}</strong><span class="small muted">${sub}</span></div></div>`;
+    const kpi = (ico: string, label: string, value: string, sub: string, help = "") =>
+      `<div class="card kpi"><span class="ico-box brand">${icon(ico, 22)}</span><div><span class="eyebrow">${label}${help ? helpBtn(help, label) : ""}</span><strong>${value}</strong><span class="small muted">${sub}</span></div></div>`;
     $("#kpis").innerHTML =
-      kpi("shield", "Casos evitados", fmt(t[`evitados_${q}`]), `entre ${fmt(t.evitados_p10)} y ${fmt(t.evitados_p90)} según el rango del modelo`) +
+      kpi("shield", "Casos evitados", fmt(t[`evitados_${q}`]), `entre ${fmt(t.evitados_p10)} y ${fmt(t.evitados_p90)} según el rango del modelo`, "casos_evitados") +
       kpi("activity", "Del total esperado", `${res.optimo.pct_casos_evitados}%`, `de ${fmt(res.casos_esperados_total[q])} casos esperados (${q.toUpperCase()})`) +
       kpi("map", "Distritos cubiertos", `${t.distritos_cubiertos} de ${total}`, `${t.brigadas} de ${brig.value} brigadas usadas`) +
-      kpi("trendingUp", "Frente a repartir parejo", mejora == null ? "—" : `${mejora >= 0 ? "+" : ""}${Math.round(mejora)}%`, `${extra >= 0 ? "+" : ""}${fmt(extra)} casos evitados más`) +
-      (res.economia ? kpi("coins", "Ahorro neto estimado", soles(res.economia.neto), `${res.economia.ahorro_por_sol} soles ahorrados por cada sol invertido (supuestos de ejemplo)`) : "");
+      kpi("trendingUp", "Frente a repartir parejo", mejora == null ? "—" : `${mejora >= 0 ? "+" : ""}${Math.round(mejora)}%`, `${extra >= 0 ? "+" : ""}${fmt(extra)} casos evitados más`, "plan_brigadas") +
+      (res.economia ? kpi("coins", "Ahorro neto estimado", soles(res.economia.neto), `${res.economia.ahorro_por_sol} soles ahorrados por cada sol invertido (supuestos de ejemplo)`, "ahorro_neto") : "");
   }
 
   function renderStrategies(res: OptResult, q: "p10" | "p50" | "p90") {

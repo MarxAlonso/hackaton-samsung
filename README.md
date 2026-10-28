@@ -20,7 +20,7 @@ Alertas tempranas de dengue y enfermedades asociadas a El Niño costero para 47 
 
 <a href="https://alerta-salud-nino.marxchip99.workers.dev"><img src="docs/img/portada.jpg" alt="Portada de Alerta Salud Niño" width="880" /></a>
 
-[Qué hace](#qué-hace) · [Capturas](#capturas) · [Resultados](#resultados) · [Datos](#datos-qué-es-real-y-qué-es-simulado) · [Arquitectura](#arquitectura) · [Cómo correrlo](#cómo-correrlo) · [Uso responsable](#uso-responsable)
+[Qué hace](#qué-hace) · [Capturas](#capturas) · [Resultados](#resultados) · [La IA](#la-ia-y-sus-límites) · [Datos](#datos-qué-es-real-y-qué-es-simulado) · [Arquitectura](#arquitectura) · [Cómo correrlo](#cómo-correrlo) · [Uso responsable](#uso-responsable)
 
 </div>
 
@@ -97,7 +97,20 @@ Hay **dos modelos**. Los casos oficiales por distrito llegan con meses de retras
 | **Contexto oficial 2026** | En el panel de autoridad, las cifras del CDC y de la alerta epidemiológica N.° 008-2026 del Minsa, con sus fuentes, junto al ranking del modelo. |
 | **Establecimientos que notifican** | Para los distritos de Piura, los 5 establecimientos que más casos de dengue notifican en las últimas 8 semanas y su tendencia (carga de notificación, no una predicción por establecimiento). |
 | **Voz y texto grande** | El ciudadano puede escuchar el aviso en voz alta y agrandar el texto (dos niveles) desde cualquier página. |
+| **Apartados y botón «?»** | Cada página abre lo esencial y deja el detalle en apartados desplegables, con una línea de resumen visible aunque estén cerrados. Cada término técnico tiene un botón «?» con su explicación, tomada de un único glosario (`web/src/lib/glossary.ts`). |
 | **Reporte ciudadano anónimo** | "Veo criaderos" o "hay personas con fiebre" en mi distrito. Solo se guarda un conteo por distrito, tipo y semana: sin texto, sin IP, sin identificador, con tope diario. La autoridad lo ve como señal sin verificar y nunca entra al modelo. |
+
+## La IA y sus límites
+
+La IA (Llama 3.3 en Workers AI) solo **redacta**: los números salen del modelo y las definiciones, del glosario del sitio. Está restringida al fenómeno de El Niño costero, el dengue y las enfermedades asociadas, las lluvias y los datos del sitio. Tres controles independientes, en [`web/src/lib/guard.ts`](web/src/lib/guard.ts):
+
+| Cuándo | Qué se controla |
+|---|---|
+| **Antes** de llamar a la IA | Largo máximo de la pregunta; intentos de manipulación («ignora tus instrucciones», «actúa como…», «muestra tu prompt», HTML o código), incluso con tildes, mayúsculas o caracteres invisibles; temas prohibidos (política, programación, finanzas, entretenimiento…); que la pregunta trate de lo que sabemos. Las peticiones médicas (diagnóstico, medicamentos, dosis) reciben una respuesta fija. Nada de esto llega al modelo. |
+| **Durante** | Reglas obligatorias por encima de todo; una base de conocimiento acotada (el glosario y las cifras oficiales citadas); los datos y la pregunta se entregan como información, nunca como órdenes; el contexto que llega del navegador se limpia (claves, largo, textos que parecen órdenes); una sola vuelta, sin historial; tope de 15 consultas por minuto por visitante (se guarda un hash que vence en 60 s). |
+| **Después** | La respuesta se descarta si trae enlaces, correos, código, medicamentos o **cifras que no están en los datos**: cualquier cantidad con unidad (casos, pruebas, camas, mm, %, °C…) debe estar en el contexto o en la base de conocimiento. Si se descarta, se muestra el texto de respaldo armado en el navegador. |
+
+Se prueba con `npm test` en `web/` (15 pruebas: manipulación, otros temas, peticiones médicas, cifras inventadas, coherencia de las cifras oficiales y que cada botón «?» apunte a una definición real) y con la prueba de humo del sitio publicado. Las pruebas corren en cada publicación semanal. Ningún filtro es perfecto: el sitio es de apoyo a la decisión y la IA no sustituye al personal de salud.
 
 ## Datos: qué es real y qué es simulado
 
@@ -198,7 +211,7 @@ ml/ (Python: solo entrena y exporta)
 
 web/ (Astro 7 en Cloudflare Workers)
   /            inicio · /ciudadano · /autoridad · /plan · /modelo · /construccion · /demo · /reporte (PDF)
-  /api/explicar  Workers AI (Llama 3.3 70B): explica distritos, gráficos, plan e informe; texto de respaldo si falla
+  /api/explicar  Workers AI (Llama 3.3 70B): explica distritos, gráficos, plan e informe con restricciones (pregunta, contexto y respuesta revisados); texto de respaldo si falla
   /api/reportes  reportes ciudadanos anónimos (solo contadores en KV, con tope diario)
   /api/alertas   guarda/borra suscripciones a alertas (Cloudflare KV): solo distrito + dirección técnica del navegador
   /sw.js         service worker: uso sin conexión + recepción de alertas · /manifest.webmanifest: app instalable
@@ -241,7 +254,7 @@ npm run build && npx wrangler deploy   # publica en Cloudflare (requiere `npx wr
 node scripts/smoke.mjs                 # prueba de humo del sitio publicado
 ```
 
-Workers AI necesita una cuenta de Cloudflare (tiene capa gratuita). Sin ella, `/api/explicar` responde con una explicación armada con plantilla y la demo sigue funcionando. Ojo: Wrangler guarda el ID de cuenta en `web/node_modules/.cache/wrangler/wrangler-account.json`; revísalo si publicas desde otra cuenta.
+`npm test` corre las pruebas de la IA y del glosario sin necesidad de cuenta. Workers AI necesita una cuenta de Cloudflare (tiene capa gratuita). Sin ella, `/api/explicar` responde con una explicación armada con plantilla y la demo sigue funcionando. Ojo: Wrangler guarda el ID de cuenta en `web/node_modules/.cache/wrangler/wrangler-account.json`; revísalo si publicas desde otra cuenta.
 
 </details>
 
@@ -285,7 +298,7 @@ Las alertas usan **Web Push estándar** (no dependen de ninguna marca): en la vi
 
 ## Uso responsable
 
-Es un sistema de **apoyo a la decisión**: no reemplaza la vigilancia epidemiológica ni los comunicados del MINSA y el ENFEN. La IA solo redacta explicaciones con los números del modelo; no diagnostica ni receta. No se usan datos personales: todo es agregado por distrito y semana.
+Es un sistema de **apoyo a la decisión**: no reemplaza la vigilancia epidemiológica ni los comunicados del MINSA y el ENFEN. La IA solo redacta explicaciones con los números del modelo y las definiciones del sitio, y solo habla de El Niño costero, el dengue y los datos del sitio (ver [La IA y sus límites](#la-ia-y-sus-límites)); no diagnostica ni receta. No se usan datos personales: todo es agregado por distrito y semana.
 
 ## Licencia
 

@@ -1,12 +1,14 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { icon } from "../lib/icons";
+import { accSummary } from "../lib/ui";
+import Help from "../components/Help.astro";
 ---
 
 <Layout title="Panel de autoridad" active="autoridad" wide description="Priorización de distritos por riesgo de brote de dengue y enfermedades asociadas a El Niño.">
   <section class="head">
     <div>
-      <h1>Panel de priorización</h1>
+      <h1>Panel de priorización <Help k="panel_autoridad" /></h1>
       <p class="muted">Distritos ordenados por probabilidad de brote de dengue en las próximas 4 semanas.</p>
       <p id="model-note" class="small muted inline-ico" style="margin-top:4px"></p>
     </div>
@@ -33,7 +35,7 @@ import { icon } from "../lib/icons";
 
   <section class="kpis" id="kpis" aria-live="polite"></section>
 
-  <section class="card official" id="official" hidden aria-label="Contexto oficial 2026"></section>
+  <details class="acc official" id="official" hidden></details>
 
   <section class="row2">
     <div class="card map-card">
@@ -57,10 +59,12 @@ import { icon } from "../lib/icons";
     <p class="muted">Selecciona un distrito en el mapa o en la lista.</p>
   </section>
 
-  <section class="card analysis">
+  <details class="acc analysis" id="analysis-acc">
+    <Fragment set:html={accSummary({ title: 'Análisis de <span id="an-name">—</span>', summary: "Historia y pronóstico, mapa de calor, comparar temporadas y comparar distritos", icon: "chart", ayuda: "historia" })} />
+    <div class="acc-body">
     <div class="analysis-head">
-      <h2 class="chart-title"><Fragment set:html={icon("chart", 20)} /> Análisis de <span id="an-name">—</span></h2>
-      <div class="controls">
+      <p class="small muted">Gráficos del distrito que elegiste arriba.</p>
+    <div class="controls">
         <button class="btn primary chart-ai" id="chart-ai" type="button"><Fragment set:html={icon("sparkles", 16)} /> Explicar este gráfico con IA</button>
         <label>Ventana
           <select id="window">
@@ -103,7 +107,8 @@ import { icon } from "../lib/icons";
       <label class="compare-pick">Comparar con <select id="compare-with"></select></label>
       <div id="compare"></div>
     </div>
-  </section>
+    </div>
+  </details>
 </Layout>
 
 <script>
@@ -117,6 +122,7 @@ import { icon } from "../lib/icons";
   import { renderSeasons, renderDistrictCompare } from "../lib/compare";
   import { simulate, warmup } from "../lib/simulator";
   import { renderOfficialContext, renderDistrictExtras } from "../lib/context";
+  import { acc, helpBtn } from "../lib/ui";
   import { explain } from "../lib/explain";
 
   type ScenarioKey = "actual" | "2023" | "2017";
@@ -156,15 +162,15 @@ import { icon } from "../lib/icons";
     const s = scenario();
     const altos = list.filter((p) => p.riesgos.dengue.nivel === "alto").length;
     const sum = (f: (p: DistrictPrediction) => number) => list.reduce((a, p) => a + f(p), 0);
-    const kpi = (ico: string, label: string, value: string, sub: string) =>
-      `<div class="card kpi"><span class="ico-box brand">${icon(ico, 22)}</span><div><span class="eyebrow">${label}</span><strong>${value}</strong><span class="small muted">${sub}</span></div></div>`;
+    const kpi = (ico: string, label: string, value: string, sub: string, help = "") =>
+      `<div class="card kpi"><span class="ico-box brand">${icon(ico, 22)}</span><div><span class="eyebrow">${label}${help ? helpBtn(help, label) : ""}</span><strong>${value}</strong><span class="small muted">${sub}</span></div></div>`;
     $("#kpis").innerHTML =
-      kpi("calendar", "Semana base", weekLabel(s.semana), "pronóstico a 4 semanas") +
-      kpi("alertOctagon", "Distritos en riesgo alto", `${altos} de ${list.length}`, "probabilidad de brote ≥ 60%") +
-      kpi("mosquito", "Casos de dengue esperados", fmt(sum((p) => p.riesgos.dengue.casos_p50 ?? 0)), `rango ${fmt(sum((p) => p.riesgos.dengue.casos_p10 ?? 0))} – ${fmt(sum((p) => p.riesgos.dengue.casos_p90 ?? 0))}`) +
-      kpi("wave", "Mar (Niño 1+2)", `${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C`, `pruebas rápidas sugeridas: ${fmt(sum((p) => p.recursos.pruebas))}`) +
+      kpi("calendar", "Semana base", weekLabel(s.semana), "pronóstico a 4 semanas", "semana_base") +
+      kpi("alertOctagon", "Distritos en riesgo alto", `${altos} de ${list.length}`, "probabilidad de brote ≥ 60%", "nivel") +
+      kpi("mosquito", "Casos de dengue esperados", fmt(sum((p) => p.riesgos.dengue.casos_p50 ?? 0)), `rango ${fmt(sum((p) => p.riesgos.dengue.casos_p10 ?? 0))} – ${fmt(sum((p) => p.riesgos.dengue.casos_p90 ?? 0))}`, "casos_esperados") +
+      kpi("wave", "Mar (Niño 1+2)", `${s.nino12 > 0 ? "+" : ""}${s.nino12.toFixed(1)} °C`, `pruebas rápidas sugeridas: ${fmt(sum((p) => p.recursos.pruebas))}`, "nino12") +
       kpi("rain", "Distritos con lluvia extrema", `${list.filter((p) => p.inundacion.nivel !== "bajo").length} de ${list.length}`,
-        s.ventana_lluvia.con_pronostico ? `pronóstico a 16 días (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)` : `en los 14 días previos (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)`) +
+        s.ventana_lluvia.con_pronostico ? `pronóstico a 16 días (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)` : `en los 14 días previos (${list.filter((p) => p.inundacion.nivel === "alto").length} en nivel extremo)`, "lluvias_extremas") +
       replayKpi(list);
   }
 
@@ -174,7 +180,7 @@ import { icon } from "../lib/icons";
     if (!withReal.length) return "";
     const right = withReal.filter((p) => (p.riesgos.dengue.prob >= 0.5) === p.real!.brote).length;
     const inside = withReal.filter((p) => p.real!.casos_4_semanas >= (p.riesgos.dengue.casos_p10 ?? 0) && p.real!.casos_4_semanas <= (p.riesgos.dengue.casos_p90 ?? 0)).length;
-    return `<div class="card kpi"><span class="ico-box brand">${icon("target", 22)}</span><div><span class="eyebrow">Acierto de la alerta</span><strong>${right} de ${withReal.length}</strong><span class="small muted">distritos bien clasificados (brote sí/no); casos reales dentro del rango en ${inside}</span></div></div>`;
+    return `<div class="card kpi"><span class="ico-box brand">${icon("target", 22)}</span><div><span class="eyebrow">Acierto de la alerta${helpBtn("acierto_alerta", "Acierto de la alerta")}</span><strong>${right} de ${withReal.length}</strong><span class="small muted">distritos bien clasificados (brote sí/no); casos reales dentro del rango en ${inside}</span></div></div>`;
   }
 
   /** Aviso bajo el titular del distrito: de dónde sale la cifra o qué pasó realmente. */
@@ -277,7 +283,6 @@ import { icon } from "../lib/icons";
           <h2>${d.district} ${badge(r.nivel)}</h2>
           <div id="headline">${headline(d.district, r)}</div>
           ${dataNote(p)}
-          <div id="extras"></div>
         </div>
         <div class="climate-chips">
           <span class="chip-c">${icon("rain", 16)} ${fmt(p.clima.lluvia_2_a_6sem)} mm <small>lluvia 2–6 sem. atrás</small></span>
@@ -289,36 +294,45 @@ import { icon } from "../lib/icons";
         <div>
           <h3 class="inline-ico">${icon("shield", 18)} Acciones recomendadas</h3>
           <ol class="actions" id="actions">${actionsFor(r.nivel, p.recursos)}</ol>
-          <h3 class="inline-ico">${icon("rain", 18)} Simulador: ¿y si cambia el clima?</h3>
-          <div class="sim">
+          <div class="ai-actions">
+            <button class="btn primary" id="explain" type="button">${icon("sparkles", 18)} Explicar con IA</button>
+            <a class="btn" id="pdf" href="/reporte?escenario=${scenarioSel.value}&d=${id}" target="_blank" rel="noopener">${icon("fileText", 18)} Informe PDF</a>
+            ${helpBtn("ia", "Explicar con IA")}
+          </div>
+          <div id="ai" class="ai-box" hidden></div>
+        </div>
+        <div>
+          <h3 class="inline-ico">${icon("activity", 18)} Todas las enfermedades (próximas 4 semanas) ${helpBtn("enfermedades", "Todas las enfermedades")}</h3>
+          <div id="riskrows">${riskRows(p.riesgos)}</div>
+        </div>
+      </div>
+      <div class="detail-accs">
+        ${acc({
+          title: "Simulador: ¿y si cambia el clima?", icon: "rain", ayuda: "simulador",
+          summary: "Mueve la lluvia o la temperatura y mira cómo cambia el riesgo de este distrito",
+          body: `<div class="sim">
             <label>Lluvias: <strong id="rain-val">observadas</strong>
               <input type="range" id="rain" min="0" max="150" step="10" value="0" aria-describedby="rain-help" /></label>
             <span id="rain-help" class="small muted">0 = clima observado · 100% = lluvias como el pico de 2023 en este distrito</span>
             <label>Temperatura: <strong id="temp-val">+0 °C</strong>
               <input type="range" id="temp" min="0" max="3" step="0.5" value="0" /></label>
             <p id="sim-out" class="small muted">Mueve los controles: el modelo se ejecuta en tu navegador.</p>
-          </div>
-        </div>
-        <div>
-          <h3 class="inline-ico">${icon("activity", 18)} Todas las enfermedades (próximas 4 semanas)</h3>
-          <div id="riskrows">${riskRows(p.riesgos)}</div>
-          <div class="ai-actions">
-            <button class="btn primary" id="explain" type="button">${icon("sparkles", 18)} Explicar con IA</button>
-            <a class="btn" id="pdf" href="/reporte?escenario=${scenarioSel.value}&d=${id}" target="_blank" rel="noopener">${icon("fileText", 18)} Informe PDF</a>
-          </div>
-          <div id="ai" class="ai-box" hidden></div>
-        </div>
-      </div>
-      <div class="flood-block lvl-border-${p.inundacion.nivel}">
-        <h3 class="inline-ico">${icon("flood", 20)} Lluvias extremas (inundación y huaico) ${badge(p.inundacion.nivel, FLOOD_LABEL[p.inundacion.nivel])}</h3>
-        <p>${floodText(p.inundacion)}</p>
-        <div class="flood-grid">
-          <div id="flood-chart"></div>
-          <div>
-            <h4 class="inline-ico">${icon("shield", 16)} Qué hacer</h4>
-            <ol class="actions">${app.contenido.lluvia_extrema.autoridad[p.inundacion.nivel].map((a) => `<li>${a}</li>`).join("")}</ol>
-          </div>
-        </div>
+          </div>`,
+        })}
+        ${acc({
+          title: "Lluvias extremas (inundación y huaico)", icon: "flood", ayuda: "lluvias_extremas", open: p.inundacion.nivel !== "bajo",
+          summary: `${FLOOD_LABEL[p.inundacion.nivel]}: máximo de ${fmt(p.inundacion.lluvia_max_3d_mm)} mm en 3 días${p.inundacion.es_pronostico ? " (pronóstico)" : ""}`,
+          cls: `flood-acc lvl-border-${p.inundacion.nivel}`,
+          body: `<p>${floodText(p.inundacion)} ${badge(p.inundacion.nivel, FLOOD_LABEL[p.inundacion.nivel])}</p>
+            <div class="flood-grid">
+              <div id="flood-chart"></div>
+              <div>
+                <h4 class="inline-ico">${icon("shield", 16)} Qué hacer</h4>
+                <ol class="actions">${app.contenido.lluvia_extrema.autoridad[p.inundacion.nivel].map((a) => `<li>${a}</li>`).join("")}</ol>
+              </div>
+            </div>`,
+        })}
+        <div id="extras"></div>
       </div>`;
 
     const fs = s.inundacion_serie[id];
@@ -483,7 +497,10 @@ import { icon } from "../lib/icons";
 </script>
 
 <style>
-  .official { margin-bottom: 16px; display: grid; gap: 12px; }
+  .official { margin-bottom: 14px; }
+  .detail-accs { margin-top: 16px; display: grid; gap: 0; }
+  :global(.flood-acc.lvl-border-alto) { border-left: 5px solid var(--critical); }
+  :global(.flood-acc.lvl-border-medio) { border-left: 5px solid var(--warning); }
   :global(.official-head) { display: flex; gap: 12px; align-items: flex-start; }
   :global(.official-head h2) { margin: 2px 0 4px; }
   :global(.official-grid) { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }

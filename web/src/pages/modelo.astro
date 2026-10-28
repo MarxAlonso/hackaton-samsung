@@ -1,6 +1,8 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { icon } from "../lib/icons";
+import Acc from "../components/Acc.astro";
+import Help from "../components/Help.astro";
 import app from "../../public/data/app.json";
 
 const m: any = app.metricas;
@@ -81,18 +83,32 @@ const cal = A.calibracion_intensidad;
 const sesgoC = C.razon_observado_previsto_por_anio;
 const val: any = (app as any).validacion_externa_2026;
 const yr = (y: number) => A.evaluacion_progresiva.find((r: any) => r.anio === y);
+const yearsExt = ext.dias_distrito_sobre_umbral_alto_por_anio as Record<string, number>;
+const SUM = {
+  progresiva: `AUC con casos ${A.evaluacion_progresiva.map((r: any) => r.auc).join(" · ")} (2022 a 2025) · solo clima ${C.evaluacion_progresiva.map((r: any) => r.auc).join(" · ")}`,
+  ic: `AUC con casos ${A.modelo.auc} (${ic(A, "auc")}) · solo clima ${C.modelo.auc} (${ic(C, "auc")})`,
+  calib: `El sesgo de 2023 baja de ${cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_antes}× a ${cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_despues}× · solo con clima no se puede calibrar`,
+  val: `AUC ${val.ordenamiento.auc_modelo_clima} contra ${val.ordenamiento.auc_linea_base_calendario} del calendario · la señal de arrastre no se integra`,
+  conf: "Si dice 70%, ¿ocurre 7 de cada 10 veces? y en qué variables se fija el modelo",
+  otras: "Leptospirosis, diarreas, infecciones respiratorias y golpe de calor (simulado)",
+  mon: `${stateLabel} · ${rt.decision === "promovido" ? "retador promovido" : "se mantiene el campeón"}`,
+  champ: rt.decision === "promovido" ? "El retador mejoró al campeón y pasó a producción" : "El retador no mejora lo suficiente: se mantiene el campeón",
+  lluvia: `Días-distrito sobre el umbral extremo: ${yearsExt["2017"] ?? 0} en 2017 y ${yearsExt["2023"] ?? 0} en 2023, casi ninguno en años normales`,
+  datos: "De dónde sale cada dato, hasta cuándo llega y qué se descartó",
+  limites: "Qué no hace este sitio y cómo usarlo con responsabilidad",
+  arq: "Del dato a esta página, paso a paso",
+};
 const texto2023 = `2023 fue una epidemia enorme: el ${pc(yr(2023).tasa_brote)} de las semanas-distrito estuvo en brote, contra ~15% en los años de entrenamiento. Con casos recientes el modelo la sigue bien (su error de probabilidades es ${(yr(2023).brier_sin_informacion / yr(2023).brier).toFixed(1)} veces menor que "sin información"). 2025 fue lo contrario, un año bajo (${pc(yr(2025).tasa_brote)} en brote): el modelo ordena igual de bien, pero casi no había brotes que anticipar y su ventaja es menor. Solo con clima casi no mejora el error, pero sí ordena los distritos por riesgo.`;
 const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 ---
 
 <Layout title="Cómo funciona" active="modelo" description="Datos reales, modelo, métricas honestas y límites de Alerta Salud Niño.">
-  <h1>Cómo funciona el modelo</h1>
+  <h1>Cómo funciona el modelo <Help k="panel_modelo" /></h1>
   <p class="muted lead">Ficha técnica resumida. Los casos son <strong>reales</strong> (CDC-MINSA, datos abiertos). El modelo se entrenó con {A.periodo_entrenamiento} y se evaluó con {A.periodo_prueba}: un periodo que no vio y que incluye las epidemias de 2023 y 2024.</p>
 
   <section class="notice small">
     <strong>Lo que dicen los datos reales, sin adornos.</strong> Cuando hay casos recientes el modelo funciona bien (AUC {A.modelo.auc}). Pero los casos oficiales llegan con meses de retraso:
-    el último que tenemos es de {fecha(datos.ultimo_caso_oficial)}. Por eso <strong>hoy se predice solo con clima</strong>, un modelo mucho más modesto (AUC {C.modelo.auc}) que sirve para
-    <em>ordenar qué distritos vigilar primero</em>, no para calcular cuántos casos habrá. Conseguir los casos de 2026 es lo que más mejoraría el sistema.
+    el último que tenemos es de {fecha(datos.ultimo_caso_oficial)}. Por eso <strong>hoy se predice solo con clima</strong>, un modelo mucho más modesto (AUC {C.modelo.auc}) que sirve para <em>ordenar qué distritos vigilar primero</em>, no para calcular cuántos casos habrá. Conseguir los casos de 2026 es lo que más mejoraría el sistema.
   </section>
 
   <section class="two">
@@ -119,8 +135,7 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </div>
   </section>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("calendar", 20)} /> Año por año: ¿qué pasa cuando el modelo ya vio la epidemia anterior?</h2>
+  <Acc title="Año por año: ¿qué pasa cuando el modelo ya vio la epidemia anterior?" icon="calendar" help="progresiva" summary={SUM.progresiva}>
     <p class="small muted">Evaluación progresiva: para cada año el modelo se entrena con <strong>todo lo anterior</strong> y se prueba en ese año. "Sin información" es predecir siempre la tasa de brote del entrenamiento: si el error del modelo no es menor, no aporta nada.</p>
     <div class="table-wrap">
     <table>
@@ -142,10 +157,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </table>
     </div>
     <p class="small muted">{texto2023}</p>
-  </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("scale", 20)} /> ¿Qué tan seguras son estas cifras?</h2>
+  <Acc title="¿Qué tan seguras son estas cifras?" icon="scale" help="ic95" summary={SUM.ic}>
     <p class="small muted">Cada métrica trae su intervalo de confianza del 95%, calculado remuestreando <strong>distritos</strong> (no filas: las semanas de un mismo distrito se parecen demasiado y darían intervalos falsamente estrechos). Si dos intervalos no se tocan, la diferencia no es casualidad.</p>
     <div class="table-wrap">
     <table>
@@ -161,10 +175,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </table>
     </div>
     <p class="small muted">La ventaja del modelo con casos sobre el criterio actual del MINSA es clara (los intervalos no se tocan). La del modelo solo clima sobre el calendario es real pero modesta. Son 47 distritos: cualquier cifra por distrito suelto es bastante más incierta que el conjunto.</p>
-  </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("trendingUp", 20)} /> Calibración de la intensidad</h2>
+  <Acc title="Calibración de la intensidad" icon="trendingUp" help="calibracion" summary={SUM.calib}>
     <p class="small muted">El modelo ordena bien los distritos, pero en las epidemias grandes se quedaba corto. Para corregirlo, en cada semana se compara lo que realmente pasó con lo que el modelo había previsto en las últimas 4 semanas ya conocidas, y se reescalan los casos esperados ({cal.regla}). Solo usa información que existía ese día y solo se aplica al modelo con casos recientes.</p>
     <div class="table-wrap">
     <table>
@@ -182,10 +195,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
     </div>
     <p class="small muted"><strong>Resultado:</strong> en las epidemias de 2023 y 2024 el sesgo baja de {cal.por_anio.find((r: any) => r.anio === 2023).razon_observado_previsto_antes}× y {cal.por_anio.find((r: any) => r.anio === 2024).razon_observado_previsto_antes}× a casi 1, y el rango se acerca al 80%. <strong>Costo:</strong> el error medio sube de {cal.total.mae_p50_antes} a {cal.total.mae_p50_despues} casos, porque en años tranquilos el ajuste a veces se pasa. En 2022 y 2025 hubo poco que corregir.</p>
     <p class="data-note warn"><span><strong>Con solo clima no hay con qué calibrar:</strong> sin casos recientes no se conoce lo que realmente pasó. Su sesgo es grande: lo observado fue {sesgoC["2023"]}× lo previsto en 2023 y {sesgoC["2024"]}× en 2024. Por eso hoy se muestra su rango como orientación y no como cifra, y se contrasta con las cifras oficiales del CDC.</span></p>
-  </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("shield", 20)} /> Validación externa con datos de 2026 (Piura)</h2>
+  <Acc title="Validación externa con datos de 2026 (Piura)" icon="shield" help="validacion_externa" summary={SUM.val}>
     <p class="small muted">Prueba con datos que el modelo de hoy nunca vio: los casos 2025–2026 del Gobierno Regional de Piura, de {val.periodo_prueba} ({val.distritos_piura} distritos). Sus conteos no son comparables con los del CDC (otro sistema), así que "actividad alta" se define de forma relativa: casos de las próximas 4 semanas sobre el percentil 75 de ese mismo distrito.</p>
     <div class="tiles">
       <div class="tile"><span class="eyebrow">Ordena la actividad (AUC)</span><strong>{val.ordenamiento.auc_modelo_clima}</strong><span class="small muted">solo calendario: {val.ordenamiento.auc_linea_base_calendario}</span></div>
@@ -193,8 +205,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <div class="tile"><span class="eyebrow">Entre distritos, semana a semana</span><strong>{val.ordenamiento.correlacion_media_por_semana_entre_distritos}</strong><span class="small muted">¿ordena qué distrito va peor?</span></div>
     </div>
     <p class="small muted"><strong>¿Sirven los casos recientes del Gobierno Regional como señal de arrastre?</strong> AUC {val.arrastre.solo_modelo_clima.auc} solo con el modelo contra {val.arrastre.modelo_clima_mas_arrastre.auc} sumando esa señal (diferencia {val.arrastre.mejora_auc}, intervalo del 95%: {val.arrastre.mejora_auc_ic95[0]} a {val.arrastre.mejora_auc_ic95[1]}). {val.arrastre.conclusion}</p>
-  </section>
+  </Acc>
 
+  <Acc title="¿Podemos confiar en el porcentaje? ¿En qué se fijan los modelos?" icon="shield" help="prob_brote" summary={SUM.conf}>
   <section class="two">
     <div class="card">
       <h2 class="chart-title"><Fragment set:html={icon("shield", 20)} /> ¿Podemos confiar en el porcentaje?</h2>
@@ -235,9 +248,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       </ul>
     </div>
   </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("activity", 20)} /> Otras enfermedades</h2>
+  <Acc title="Otras enfermedades" icon="activity" help="enfermedades" summary={SUM.otras}>
     <p class="small muted">Modelos más simples (regresión logística) que estiman la probabilidad de semanas de riesgo alto (casos sobre el percentil 80 del distrito). Las cuatro primeras usan casos <strong>reales</strong>; el golpe de calor es simulado.</p>
     <div class="table-wrap">
     <table>
@@ -254,15 +267,11 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       </tbody>
     </table>
     </div>
-  </section>
+  </Acc>
 
-  <section class="card mon-head">
-    <div>
-      <h2 class="chart-title"><Fragment set:html={icon("refresh", 20)} /> Monitoreo y reentrenamiento automático</h2>
-      <p class="small muted">Cada semana el sistema revisa si los datos cambiaron, si el modelo de hoy sigue acertando y, si hace falta, prueba un modelo nuevo contra el actual.</p>
-    </div>
-    <span class={`badge lvl-${stateLevel}`}>{stateLabel}</span>
-  </section>
+  <Acc title="Monitoreo y reentrenamiento automático" icon="refresh" help="psi" summary={SUM.mon}>
+  <p class="small muted">Cada semana el sistema revisa si los datos cambiaron, si el modelo de hoy sigue acertando y, si hace falta, prueba un modelo nuevo contra el actual.</p>
+  <p><span class={`badge lvl-${stateLevel}`}>{stateLabel}</span></p>
   {mon.motivos.length > 0 && (
     <p class="notice small"><strong>Qué detectó el monitoreo:</strong> {mon.motivos.join("; ")}.</p>
   )}
@@ -309,9 +318,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <p class="small muted">Brier reciente (últimos 2 trimestres con casos): <strong>{mon.brier_reciente}</strong> frente a <strong>{mon.brier_validacion}</strong> en validación.</p>
     </div>
   </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("award", 20)} /> Campeón contra retador</h2>
+  <Acc title="Campeón contra retador" icon="award" help="campeon_retador" summary={SUM.champ}>
     <p class="small muted">Se entrena un modelo nuevo con todo lo etiquetado hasta {rt.ventana_comparacion.desde} y ambos se comparan en las {rt.ventana_comparacion.semanas} semanas siguientes ({rt.ventana_comparacion.desde} → {rt.ventana_comparacion.hasta}, un año completo para no caer solo en la temporada baja), que ninguno vio al entrenar.</p>
     <div class="table-wrap">
     <table>
@@ -331,10 +340,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <span><strong>Modelo de hoy: {rt.decision === "promovido" ? "el retador fue promovido a producción." : "se mantiene el campeón."}</strong> {rt.motivo} <span class="muted">{rt.regla}</span> El año de comparación ({rt.ventana_comparacion.desde} a {rt.ventana_comparacion.hasta}) fue tranquilo, así que no pone a prueba del todo a un modelo entrenado también con las epidemias de 2023–24. Aun así, el límite del modelo solo clima es la falta de casos recientes, no la cantidad de años.</span>
     </p>
     <p class="small muted">Los replays de 2017 y 2023 usan el campeón de evaluación, que nunca vio esas epidemias. Cada entrenamiento queda registrado (MLflow y <code>experiments.jsonl</code>).</p>
-  </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("flood", 20)} /> Lluvias extremas: ¿el índice funciona?</h2>
+  <Acc title="Lluvias extremas: ¿el índice funciona?" icon="flood" help="lluvias_extremas" summary={SUM.lluvia}>
     <p class="small muted">{ext.metodo} Días-distrito sobre el umbral extremo por año: debe destacar los años de Niño costero. Los umbrales se fijaron con 2015–2021, así que 2023 no se usó para calibrarlos.</p>
     <svg viewBox={`0 0 ${FW} ${FH}`} width="100%" style="max-width:560px" role="img" aria-label="Días-distrito sobre el umbral extremo por año">
       {[0, 0.5, 1].map((t) => (
@@ -354,10 +362,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       ))}
     </svg>
     <p class="small muted">Rojo: 2017 (Niño costero) y 2023 (ciclón Yaku). No es un modelo entrenado con inundaciones reales (no hay inventario público por distrito): es un índice de umbrales, el enfoque habitual de las alertas por lluvia.</p>
-  </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("database", 20)} /> De dónde salen los datos</h2>
+  <Acc title="De dónde salen los datos" icon="database" summary={SUM.datos}>
     <p class="small muted">Todo es abierto y se descarga solo, sin intervención manual. Licencia: {datos.licencia}. Fuente: {datos.cita}</p>
     <div class="table-wrap">
     <table>
@@ -384,10 +391,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <li><strong>Piura 2025–2026 (Gobierno Regional):</strong> se muestra como contexto y como validación externa, pero no entra al entrenamiento: sus conteos no son comparables con los del CDC (2025: 12 242 frente a 1 117), probablemente porque es otro sistema de registro.</li>
       <li><strong>Población y acceso a agua</strong> de cada distrito son aproximados (orden de magnitud INEI). Los casos se cruzan por código oficial (UBIGEO), no por nombre.</li>
     </ul>
-  </section>
+  </Acc>
 
-  <section class="card limits">
-    <h2 class="chart-title"><Fragment set:html={icon("info", 20)} /> Límites y uso responsable</h2>
+  <Acc title="Límites y uso responsable" icon="info" summary={SUM.limites}>
     <ul class="small">
       <li>Es un sistema de <strong>apoyo a la decisión</strong>: no reemplaza la vigilancia epidemiológica ni los comunicados del MINSA y el ENFEN.</li>
       <li><strong>Hoy no hay casos oficiales recientes</strong> (último: {fecha(datos.ultimo_caso_oficial)}). La predicción de hoy usa solo clima y no calcula bien cuántos casos habrá: sirve para priorizar la vigilancia.</li>
@@ -397,10 +403,9 @@ const fecha = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("e
       <li>El monitoreo semanal mide la deriva de los datos y el error reciente; si hace falta, un retador compite contra el modelo actual y solo se promueve si mejora de forma clara.</li>
       <li>El plan de brigadas usa supuestos editables (efectividad, capacidad y costos de ejemplo): es una guía de priorización, no una orden de operaciones.</li>
     </ul>
-  </section>
+  </Acc>
 
-  <section class="card">
-    <h2 class="chart-title"><Fragment set:html={icon("layers", 20)} /> Arquitectura</h2>
+  <Acc title="Arquitectura" icon="layers" summary={SUM.arq}>
     <pre class="arch">Python (ml/) ─ ingest (clima, incremental) → ingest_cases (CDC-MINSA) → build_cases → train → monitor → retrain → export
    │  dos modelos: con casos recientes · solo clima (el de hoy) · índice de lluvias extremas
    │  evaluación progresiva por año · campeón vs retador · registro MLflow
@@ -411,7 +416,7 @@ app.json + series.json + modelos .onnx ──▶ Astro en Cloudflare (este sitio
                                └─ /api/alertas → alertas push (Web Push)
 FastAPI (api/) + Docker ──▶ /predict · /predict/batch · /optimize · /monitoreo · /health</pre>
     <p class="small muted">Datos generados el {app.generado}.</p>
-  </section>
+  </Acc>
 </Layout>
 
 <style>

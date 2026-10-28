@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import { icon } from "../lib/icons";
 import app from "../../public/data/app.json";
+import { GLOSARIO } from "../lib/glossary";
 
 interface Props {
   title: string;
@@ -78,6 +79,18 @@ const nav = [
     <main class:list={[{ wide }]}>
       <slot />
     </main>
+    <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title">
+      <form method="dialog">
+        <p class="eyebrow">¿Qué significa?</p>
+        <h2 id="help-title"></h2>
+        <p id="help-que"></p>
+        <p id="help-leer" class="help-block" hidden></p>
+        <p id="help-ojo" class="help-block warn" hidden></p>
+        <div class="help-actions">
+          <button class="btn primary" value="ok">Entendido</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="install-dialog" class="install-dialog" aria-labelledby="install-title">
       <form method="dialog">
         <h2 id="install-title" class="inline-ico"><Fragment set:html={icon("smartphone", 22)} /> Instala la app en tu celular</h2>
@@ -133,6 +146,7 @@ const nav = [
         médica ni los comunicados oficiales del MINSA y el ENFEN.
       </p>
     </footer>
+    <script is:inline id="glosario-data" type="application/json" set:html={JSON.stringify(GLOSARIO)} />
     <script>
       import { initPwa } from "../lib/pwa";
       initPwa();
@@ -158,6 +172,31 @@ const nav = [
       addEventListener("scroll", onScroll, { passive: true });
       onScroll();
       toTop.addEventListener("click", () => scrollTo({ top: 0, behavior: "smooth" }));
+
+      // Botones «?»: una sola ventana de ayuda para todo el sitio (el texto sale de src/lib/glossary.ts)
+      const GLOSARIO_JSON = JSON.parse(document.getElementById("glosario-data")!.textContent!) as Record<string, { titulo: string; que: string; leer?: string; ojo?: string }>;
+      const helpDialog = document.getElementById("help-dialog") as HTMLDialogElement;
+      document.addEventListener("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLElement>("[data-help]");
+        if (!b) return;
+        e.preventDefault();   // dentro de un apartado, el «?» no debe abrirlo ni cerrarlo
+        e.stopPropagation();
+        const entry = GLOSARIO_JSON[b.dataset.help!];
+        if (!entry) return;
+        document.getElementById("help-title")!.textContent = entry.titulo;
+        document.getElementById("help-que")!.textContent = entry.que;
+        for (const [id, label, text] of [["help-leer", "Cómo leerlo. ", entry.leer], ["help-ojo", "Ojo. ", entry.ojo]] as const) {
+          const p = document.getElementById(id)!;
+          p.hidden = !text;
+          p.textContent = "";
+          if (text) { const s = document.createElement("strong"); s.textContent = label; p.append(s, text); }
+        }
+        helpDialog.showModal();
+      }, true);
+      helpDialog.addEventListener("click", (e) => { if (e.target === helpDialog) helpDialog.close(); });
+
+      // Al imprimir se abren todos los apartados para que el papel lleve todo
+      addEventListener("beforeprint", () => document.querySelectorAll<HTMLDetailsElement>("details.acc").forEach((d) => (d.open = true)));
 
       // Texto grande: normal → grande → muy grande (se recuerda en este navegador)
       const sizeBtn = document.getElementById("size-toggle")!;

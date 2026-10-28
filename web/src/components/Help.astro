@@ -1,0 +1,8 @@
+---
+// Botón «?» que abre la explicación de la clave (ver src/lib/glossary.ts).
+import { helpBtn } from "../lib/ui";
+interface Props { k: string; label?: string }
+const { k, label = "" } = Astro.props;
+---
+
+<Fragment set:html={helpBtn(k, label)} />

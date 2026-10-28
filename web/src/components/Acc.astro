@@ -1,0 +1,21 @@
+---
+// Apartado desplegable para páginas Astro. Cerrado muestra título y una línea; abierto, el detalle.
+import { accSummary } from "../lib/ui";
+
+interface Props {
+  title: string;
+  summary?: string;
+  icon?: string;
+  /** Clave del glosario para el botón «?». */
+  help?: string;
+  open?: boolean;
+  id?: string;
+  class?: string;
+}
+const { title, summary, icon, help, open = false, id, class: cls = "" } = Astro.props;
+---
+
+<details class:list={["acc", cls]} id={id} open={open}>
+  <Fragment set:html={accSummary({ title, summary, icon, ayuda: help })} />
+  <div class="acc-body"><slot /></div>
+</details>

@@ -23,7 +23,7 @@ const pasos = [
     icon: "hospital", min: "0:40", titulo: "Una autoridad prioriza hoy",
     url: "/autoridad/?escenario=actual&d=lam-olmos", foco: "#headline",
     decir: "La DIRESA ve qué distritos vigilar primero. Hoy no hay casos oficiales recientes por distrito (el último dato es de fines de 2025), así que el sistema lo dice con claridad y estima solo con clima, y lo contrasta con las cifras oficiales de 2026.",
-    mirar: ["La tarjeta con lo que reporta el CDC este año: Piura +944%, Lambayeque +832% frente a 2025.", "El aviso amarillo: estimación solo con clima, para priorizar y no como cifra exacta.", "Los establecimientos que más casos notifican en el distrito (solo Piura)."],
+    mirar: ["Cada apartado se abre con un toque, y el botón ? explica cualquier término.", "La tarjeta con lo que reporta el CDC este año: Piura +944%, Lambayeque +832% frente a 2025.", "El aviso amarillo: estimación solo con clima, para priorizar y no como cifra exacta.", "Los establecimientos que más casos notifican en el distrito (solo Piura)."],
   },
   {
     icon: "calendar", min: "0:40", titulo: "¿Habría avisado en 2023?",
@@ -34,8 +34,8 @@ const pasos = [
   {
     icon: "rain", min: "0:30", titulo: "¿Y si llueve como en 2023?",
     url: "/autoridad/?escenario=actual&d=piu-castilla", foco: "#rain",
-    decir: "El modelo corre dentro del navegador. Se mueve la lluvia o la temperatura y el riesgo se recalcula al instante, sin enviar nada a un servidor.",
-    mirar: ["Mueve el control de lluvias y mira cambiar la probabilidad.", "Funciona sin internet una vez cargado."],
+    decir: "El modelo corre dentro del navegador. Se abre el apartado del simulador, se mueve la lluvia o la temperatura y el riesgo se recalcula al instante, sin enviar nada a un servidor.",
+    mirar: ["Mueve el control de lluvias y mira cambiar la probabilidad.", "Funciona sin internet una vez cargado.", "La IA de esta página solo responde sobre El Niño costero, el dengue y los datos del sitio."],
   },
   {
     icon: "target", min: "0:40", titulo: "Dónde poner las brigadas",
@@ -139,6 +139,8 @@ const pasos = [
           if (token !== focusToken) return;
           try {
             const el = frame.contentDocument?.querySelector(sel);
+            // lo que se quiere mostrar puede estar dentro de un apartado cerrado: se abre
+            for (let d = el?.closest("details"); d; d = d.parentElement?.closest("details")) d.open = true;
             const ready = el && (el.offsetHeight > 0 || sel === "main");
             if (ready) {
               const top = el.getBoundingClientRect().top + frame.contentWindow.scrollY - 90;
